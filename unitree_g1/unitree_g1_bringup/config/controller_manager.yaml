@@ -1,0 +1,475 @@
+controller_manager:
+  ros__parameters:
+    update_rate: 200  # Hz
+    enable_pal_statistics_publisher: false  # Disable to prevent shutdown errors
+    enable_pal_statistics: false  # Alternative parameter name
+
+    # Controller type definitions.
+    joint_state_broadcaster:
+      type: joint_state_broadcaster/JointStateBroadcaster
+
+    imu_sensor_broadcaster:
+      type: imu_sensor_broadcaster/IMUSensorBroadcaster
+
+    disable_controller:
+      type: isaac_ros_deploy_ros2_control/DisableController
+
+    freeze_controller:
+      type: isaac_ros_deploy_ros2_control/FreezeController
+
+    forward_position_controller:
+      type: forward_command_controller/ForwardCommandController
+
+    forward_joint_command_controller:
+      type: isaac_ros_deploy_ros2_control/ForwardJointCommandController
+
+    finger_controller:
+      type: isaac_ros_deploy_ros2_control/ForwardJointCommandController
+
+    joint_trajectory_controller:
+      type: joint_trajectory_controller/JointTrajectoryController
+
+    inference_controller:
+      type: isaac_ros_deploy_ros2_control/InferenceController
+
+    safety_controller:
+      type: isaac_ros_deploy_ros2_control/SafetyController
+
+    ik_controller:
+      type: isaac_ros_cumotion_controllers/BimanualIkController
+
+# Joint State Broadcaster Configuration.
+joint_state_broadcaster:
+  ros__parameters:
+    joints:
+      - left_hip_pitch_joint
+      - right_hip_pitch_joint
+      - waist_yaw_joint
+      - left_hip_roll_joint
+      - right_hip_roll_joint
+      - waist_roll_joint
+      - left_hip_yaw_joint
+      - right_hip_yaw_joint
+      - waist_pitch_joint
+      - left_knee_joint
+      - right_knee_joint
+      - left_shoulder_pitch_joint
+      - right_shoulder_pitch_joint
+      - left_ankle_pitch_joint
+      - right_ankle_pitch_joint
+      - left_shoulder_roll_joint
+      - right_shoulder_roll_joint
+      - left_ankle_roll_joint
+      - right_ankle_roll_joint
+      - left_shoulder_yaw_joint
+      - right_shoulder_yaw_joint
+      - left_elbow_joint
+      - right_elbow_joint
+      - left_wrist_roll_joint
+      - right_wrist_roll_joint
+      - left_wrist_pitch_joint
+      - right_wrist_pitch_joint
+      - left_wrist_yaw_joint
+      - right_wrist_yaw_joint
+      - left_hand_thumb_0_joint
+      - left_hand_thumb_1_joint
+      - left_hand_thumb_2_joint
+      - left_hand_middle_0_joint
+      - left_hand_middle_1_joint
+      - left_hand_index_0_joint
+      - left_hand_index_1_joint
+      - right_hand_thumb_0_joint
+      - right_hand_thumb_1_joint
+      - right_hand_thumb_2_joint
+      - right_hand_middle_0_joint
+      - right_hand_middle_1_joint
+      - right_hand_index_0_joint
+      - right_hand_index_1_joint
+    
+    interfaces:
+      - position
+      - velocity
+      - effort
+
+# IMU Sensor Broadcaster Configuration.
+imu_sensor_broadcaster:
+  ros__parameters:
+    sensor_name: imu
+    frame_id: imu_in_pelvis
+
+# Disable Controller Configuration (robot collapses under gravity).
+disable_controller:
+  ros__parameters:
+    joints:
+      - left_hip_pitch_joint
+      - right_hip_pitch_joint
+      - waist_yaw_joint
+      - left_hip_roll_joint
+      - right_hip_roll_joint
+      - waist_roll_joint
+      - left_hip_yaw_joint
+      - right_hip_yaw_joint
+      - waist_pitch_joint
+      - left_knee_joint
+      - right_knee_joint
+      - left_shoulder_pitch_joint
+      - right_shoulder_pitch_joint
+      - left_ankle_pitch_joint
+      - right_ankle_pitch_joint
+      - left_shoulder_roll_joint
+      - right_shoulder_roll_joint
+      - left_ankle_roll_joint
+      - right_ankle_roll_joint
+      - left_shoulder_yaw_joint
+      - right_shoulder_yaw_joint
+      - left_elbow_joint
+      - right_elbow_joint
+      - left_wrist_roll_joint
+      - right_wrist_roll_joint
+      - left_wrist_pitch_joint
+      - right_wrist_pitch_joint
+      - left_wrist_yaw_joint
+      - right_wrist_yaw_joint
+      - left_hand_thumb_0_joint
+      - left_hand_thumb_1_joint
+      - left_hand_thumb_2_joint
+      - left_hand_middle_0_joint
+      - left_hand_middle_1_joint
+      - left_hand_index_0_joint
+      - left_hand_index_1_joint
+      - right_hand_thumb_0_joint
+      - right_hand_thumb_1_joint
+      - right_hand_thumb_2_joint
+      - right_hand_middle_0_joint
+      - right_hand_middle_1_joint
+      - right_hand_index_0_joint
+      - right_hand_index_1_joint
+
+# Freeze Controller Configuration (position hold with impedance control).
+freeze_controller:
+  ros__parameters:
+    kp: 10.0  # SDK-matched gain (leg hip level, middle-ground across joint types)
+    kd: 1.0   # Standard SDK damping
+    joints:
+      - left_hip_pitch_joint
+      - right_hip_pitch_joint
+      - waist_yaw_joint
+      - left_hip_roll_joint
+      - right_hip_roll_joint
+      - waist_roll_joint
+      - left_hip_yaw_joint
+      - right_hip_yaw_joint
+      - waist_pitch_joint
+      - left_knee_joint
+      - right_knee_joint
+      - left_shoulder_pitch_joint
+      - right_shoulder_pitch_joint
+      - left_ankle_pitch_joint
+      - right_ankle_pitch_joint
+      - left_shoulder_roll_joint
+      - right_shoulder_roll_joint
+      - left_ankle_roll_joint
+      - right_ankle_roll_joint
+      - left_shoulder_yaw_joint
+      - right_shoulder_yaw_joint
+      - left_elbow_joint
+      - right_elbow_joint
+      - left_wrist_roll_joint
+      - right_wrist_roll_joint
+      - left_wrist_pitch_joint
+      - right_wrist_pitch_joint
+      - left_wrist_yaw_joint
+      - right_wrist_yaw_joint
+      - left_hand_thumb_0_joint
+      - left_hand_thumb_1_joint
+      - left_hand_thumb_2_joint
+      - left_hand_middle_0_joint
+      - left_hand_middle_1_joint
+      - left_hand_index_0_joint
+      - left_hand_index_1_joint
+      - right_hand_thumb_0_joint
+      - right_hand_thumb_1_joint
+      - right_hand_thumb_2_joint
+      - right_hand_middle_0_joint
+      - right_hand_middle_1_joint
+      - right_hand_index_0_joint
+      - right_hand_index_1_joint
+
+# Inference Controller Configuration.
+# Note: Paths will be overridden by launch file parameters.
+inference_controller:
+  ros__parameters:
+    config_path: ""
+    decimation: 4
+
+# Safety Core Controller Configuration.
+# Note: blend_ratio will be overridden by launch file (hardware-specific defaults).
+safety_controller:
+  ros__parameters:
+    # Strategy and default gains
+    blend_strategy: "linear_interpolate"
+    default_kp: 100.0
+    default_kd: 2.0
+
+    # Blend ratio for safety blending (0.0 to 1.0)
+    # 0.0 = policy disabled (zero output), 1.0 = policy fully enabled
+    # Adjustable at runtime via: ros2 param set /safety_controller blend_ratio <value>
+    # Or use rqt_reconfigure GUI for easier adjustment
+    blend_ratio: 0.0  # Overridden by launch file: 1.0 for sim, 0.0 for real
+    max_blend_ratio_speed: 1.0  # Max rate of change for blend_ratio (units/second)
+    joints:
+      - left_hip_pitch_joint
+      - right_hip_pitch_joint
+      - waist_yaw_joint
+      - left_hip_roll_joint
+      - right_hip_roll_joint
+      - waist_roll_joint
+      - left_hip_yaw_joint
+      - right_hip_yaw_joint
+      - waist_pitch_joint
+      - left_knee_joint
+      - right_knee_joint
+      - left_shoulder_pitch_joint
+      - right_shoulder_pitch_joint
+      - left_ankle_pitch_joint
+      - right_ankle_pitch_joint
+      - left_shoulder_roll_joint
+      - right_shoulder_roll_joint
+      - left_ankle_roll_joint
+      - right_ankle_roll_joint
+      - left_shoulder_yaw_joint
+      - right_shoulder_yaw_joint
+      - left_elbow_joint
+      - right_elbow_joint
+      - left_wrist_roll_joint
+      - right_wrist_roll_joint
+      - left_wrist_pitch_joint
+      - right_wrist_pitch_joint
+      - left_wrist_yaw_joint
+      - right_wrist_yaw_joint
+      - left_hand_thumb_0_joint
+      - left_hand_thumb_1_joint
+      - left_hand_thumb_2_joint
+      - left_hand_middle_0_joint
+      - left_hand_middle_1_joint
+      - left_hand_index_0_joint
+      - left_hand_index_1_joint
+      - right_hand_thumb_0_joint
+      - right_hand_thumb_1_joint
+      - right_hand_thumb_2_joint
+      - right_hand_middle_0_joint
+      - right_hand_middle_1_joint
+      - right_hand_index_0_joint
+      - right_hand_index_1_joint
+
+# ForwardJointCommandController Configuration (subscribes to JointCommand).
+# Chained with safety_controller.
+forward_joint_command_controller:
+  ros__parameters:
+    joint_command_topic: /joint_commands
+    command_prefix: "safety_controller"
+    command_suffix: "_raw"
+    default_kp: 100.0
+    default_kd: 2.0
+    joints:
+      - left_hip_pitch_joint
+      - right_hip_pitch_joint
+      - waist_yaw_joint
+      - left_hip_roll_joint
+      - right_hip_roll_joint
+      - waist_roll_joint
+      - left_hip_yaw_joint
+      - right_hip_yaw_joint
+      - waist_pitch_joint
+      - left_knee_joint
+      - right_knee_joint
+      - left_shoulder_pitch_joint
+      - right_shoulder_pitch_joint
+      - left_ankle_pitch_joint
+      - right_ankle_pitch_joint
+      - left_shoulder_roll_joint
+      - right_shoulder_roll_joint
+      - left_ankle_roll_joint
+      - right_ankle_roll_joint
+      - left_shoulder_yaw_joint
+      - right_shoulder_yaw_joint
+      - left_elbow_joint
+      - right_elbow_joint
+      - left_wrist_roll_joint
+      - right_wrist_roll_joint
+      - left_wrist_pitch_joint
+      - right_wrist_pitch_joint
+      - left_wrist_yaw_joint
+      - right_wrist_yaw_joint
+      - left_hand_thumb_0_joint
+      - left_hand_thumb_1_joint
+      - left_hand_thumb_2_joint
+      - left_hand_middle_0_joint
+      - left_hand_middle_1_joint
+      - left_hand_index_0_joint
+      - left_hand_index_1_joint
+      - right_hand_thumb_0_joint
+      - right_hand_thumb_1_joint
+      - right_hand_thumb_2_joint
+      - right_hand_middle_0_joint
+      - right_hand_middle_1_joint
+      - right_hand_index_0_joint
+      - right_hand_index_1_joint
+
+# Finger Controller Configuration.
+finger_controller:
+  ros__parameters:
+    joint_state_topic: /xr_teleop/finger_joints_remapped
+    command_prefix: "safety_controller"
+    command_suffix: "_raw"
+    default_kp: 0.5
+    default_kd: 0.1
+    joints:
+      - left_hand_thumb_0_joint
+      - left_hand_thumb_1_joint
+      - left_hand_thumb_2_joint
+      - left_hand_middle_0_joint
+      - left_hand_middle_1_joint
+      - left_hand_index_0_joint
+      - left_hand_index_1_joint
+      - right_hand_thumb_0_joint
+      - right_hand_thumb_1_joint
+      - right_hand_thumb_2_joint
+      - right_hand_middle_0_joint
+      - right_hand_middle_1_joint
+      - right_hand_index_0_joint
+      - right_hand_index_1_joint
+
+# Forward Position Controller Configuration.
+forward_position_controller:
+  ros__parameters:
+    joints:
+      - left_hip_pitch_joint
+      - right_hip_pitch_joint
+      - waist_yaw_joint
+      - left_hip_roll_joint
+      - right_hip_roll_joint
+      - waist_roll_joint
+      - left_hip_yaw_joint
+      - right_hip_yaw_joint
+      - waist_pitch_joint
+      - left_knee_joint
+      - right_knee_joint
+      - left_shoulder_pitch_joint
+      - right_shoulder_pitch_joint
+      - left_ankle_pitch_joint
+      - right_ankle_pitch_joint
+      - left_shoulder_roll_joint
+      - right_shoulder_roll_joint
+      - left_ankle_roll_joint
+      - right_ankle_roll_joint
+      - left_shoulder_yaw_joint
+      - right_shoulder_yaw_joint
+      - left_elbow_joint
+      - right_elbow_joint
+      - left_wrist_roll_joint
+      - right_wrist_roll_joint
+      - left_wrist_pitch_joint
+      - right_wrist_pitch_joint
+      - left_wrist_yaw_joint
+      - right_wrist_yaw_joint
+      - left_hand_thumb_0_joint
+      - left_hand_thumb_1_joint
+      - left_hand_thumb_2_joint
+      - left_hand_middle_0_joint
+      - left_hand_middle_1_joint
+      - left_hand_index_0_joint
+      - left_hand_index_1_joint
+      - right_hand_thumb_0_joint
+      - right_hand_thumb_1_joint
+      - right_hand_thumb_2_joint
+      - right_hand_middle_0_joint
+      - right_hand_middle_1_joint
+      - right_hand_index_0_joint
+      - right_hand_index_1_joint
+    interface_name: position
+
+# Joint Trajectory Controller Configuration.
+joint_trajectory_controller:
+  ros__parameters:
+    joints:
+      - left_hip_pitch_joint
+      - right_hip_pitch_joint
+      - waist_yaw_joint
+      - left_hip_roll_joint
+      - right_hip_roll_joint
+      - waist_roll_joint
+      - left_hip_yaw_joint
+      - right_hip_yaw_joint
+      - waist_pitch_joint
+      - left_knee_joint
+      - right_knee_joint
+      - left_shoulder_pitch_joint
+      - right_shoulder_pitch_joint
+      - left_ankle_pitch_joint
+      - right_ankle_pitch_joint
+      - left_shoulder_roll_joint
+      - right_shoulder_roll_joint
+      - left_ankle_roll_joint
+      - right_ankle_roll_joint
+      - left_shoulder_yaw_joint
+      - right_shoulder_yaw_joint
+      - left_elbow_joint
+      - right_elbow_joint
+      - left_wrist_roll_joint
+      - right_wrist_roll_joint
+      - left_wrist_pitch_joint
+      - right_wrist_pitch_joint
+      - left_wrist_yaw_joint
+      - right_wrist_yaw_joint
+      - left_hand_thumb_0_joint
+      - left_hand_thumb_1_joint
+      - left_hand_thumb_2_joint
+      - left_hand_middle_0_joint
+      - left_hand_middle_1_joint
+      - left_hand_index_0_joint
+      - left_hand_index_1_joint
+      - right_hand_thumb_0_joint
+      - right_hand_thumb_1_joint
+      - right_hand_thumb_2_joint
+      - right_hand_middle_0_joint
+      - right_hand_middle_1_joint
+      - right_hand_index_0_joint
+      - right_hand_index_1_joint
+    
+    command_interfaces:
+      - position
+
+    state_interfaces:
+      - position
+      - velocity
+
+# cuMotion IK Controller Configuration.
+ik_controller:
+  ros__parameters:
+    left_end_effector_frame: left_hand_palm_link
+    right_end_effector_frame: right_hand_palm_link
+    left_ee_command_frame: "left_hand_palm_link_openxr"
+    right_ee_command_frame: "right_hand_palm_link_openxr"
+    robot_base_frame: pelvis
+    # Arms-only (14 DOF): excludes all waist joints.  waist_roll and waist_pitch
+    # are claimed by inference_controller in the agile_velocity_with_ik group.
+    # waist_yaw is excluded so the IK controller produces zero torque on it.
+    kp: 20.0
+    kd: 1.0
+    joints:
+      - left_shoulder_pitch_joint
+      - left_shoulder_roll_joint
+      - left_shoulder_yaw_joint
+      - left_elbow_joint
+      - left_wrist_roll_joint
+      - left_wrist_pitch_joint
+      - left_wrist_yaw_joint
+      - right_shoulder_pitch_joint
+      - right_shoulder_roll_joint
+      - right_shoulder_yaw_joint
+      - right_elbow_joint
+      - right_wrist_roll_joint
+      - right_wrist_pitch_joint
+      - right_wrist_yaw_joint
+

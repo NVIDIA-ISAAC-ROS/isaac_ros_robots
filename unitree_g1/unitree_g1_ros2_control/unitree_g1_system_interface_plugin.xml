@@ -1,0 +1,13 @@
+<library path="unitree_g1_ros2_control">
+  <class name="unitree_g1_ros2_control/UnitreeG1SystemInterface"
+         type="unitree_g1_ros2_control::UnitreeG1SystemInterface"
+         base_class_type="hardware_interface::SystemInterface">
+    <description>
+      ROS2 control hardware interface for Unitree G1 humanoid robot.
+      Communicates with the robot via Unitree SDK using DDS.
+      Exposes joint state (position, velocity, effort) and command
+      (position, velocity, effort, kp, kd) interfaces compatible with
+      the MuJoCo simulation interface.
+    </description>
+  </class>
+</library>

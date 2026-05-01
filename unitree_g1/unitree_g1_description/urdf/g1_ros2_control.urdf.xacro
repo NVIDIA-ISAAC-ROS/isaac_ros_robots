@@ -1,0 +1,111 @@
+<?xml version="1.0"?>
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro">
+
+  <!-- Helper macro for joint interfaces with official mujoco_ros2_control -->
+  <xacro:macro name="mujoco_joint" params="name initial_position:=0.0">
+    <joint name="${name}">
+      <!-- Command interfaces -->
+      <command_interface name="position"/>
+      <command_interface name="velocity"/>
+      <command_interface name="effort"/>
+      <command_interface name="kp"/>
+      <command_interface name="kd"/>
+      <!-- State interfaces -->
+      <state_interface name="position">
+        <param name="initial_value">${initial_position}</param>
+      </state_interface>
+      <state_interface name="velocity"/>
+      <state_interface name="effort"/>
+    </joint>
+  </xacro:macro>
+
+  <!-- Macro for G1 ros2_control configuration using official mujoco_ros2_control -->
+  <xacro:macro name="g1_ros2_control" params="mujoco_model_path enable_viewer:=true">
+
+    <!-- ROS2 Control Hardware Interface for G1 -->
+    <ros2_control name="MujocoSystem" type="system">
+
+      <!-- Hardware plugin - Using official mujoco_ros2_control package -->
+      <hardware>
+        <plugin>mujoco_ros2_control/MujocoSystemInterface</plugin>
+        <param name="mujoco_model">${mujoco_model_path}</param>
+        <param name="headless">${'false' if str(enable_viewer).lower() == 'true' else 'true'}</param>
+        <param name="sim_speed_factor">1.0</param>
+        <param name="odom_frame">world</param>
+      </hardware>
+
+      <!-- Leg Joints -->
+      <xacro:mujoco_joint name="left_hip_pitch_joint"/>
+      <xacro:mujoco_joint name="right_hip_pitch_joint"/>
+      <xacro:mujoco_joint name="waist_yaw_joint"/>
+      <xacro:mujoco_joint name="left_hip_roll_joint"/>
+      <xacro:mujoco_joint name="right_hip_roll_joint"/>
+      <xacro:mujoco_joint name="waist_roll_joint"/>
+      <xacro:mujoco_joint name="left_hip_yaw_joint"/>
+      <xacro:mujoco_joint name="right_hip_yaw_joint"/>
+      <xacro:mujoco_joint name="waist_pitch_joint"/>
+      <xacro:mujoco_joint name="left_knee_joint"/>
+      <xacro:mujoco_joint name="right_knee_joint"/>
+
+      <!-- Arm Joints -->
+      <xacro:mujoco_joint name="left_shoulder_pitch_joint"/>
+      <xacro:mujoco_joint name="right_shoulder_pitch_joint"/>
+      <xacro:mujoco_joint name="left_ankle_pitch_joint"/>
+      <xacro:mujoco_joint name="right_ankle_pitch_joint"/>
+      <xacro:mujoco_joint name="left_shoulder_roll_joint"/>
+      <xacro:mujoco_joint name="right_shoulder_roll_joint"/>
+      <xacro:mujoco_joint name="left_ankle_roll_joint"/>
+      <xacro:mujoco_joint name="right_ankle_roll_joint"/>
+      <xacro:mujoco_joint name="left_shoulder_yaw_joint"/>
+      <xacro:mujoco_joint name="right_shoulder_yaw_joint"/>
+      <xacro:mujoco_joint name="left_elbow_joint"/>
+      <xacro:mujoco_joint name="right_elbow_joint"/>
+
+      <!-- Hand/Wrist Joints -->
+      <xacro:mujoco_joint name="left_wrist_roll_joint"/>
+      <xacro:mujoco_joint name="right_wrist_roll_joint"/>
+      <xacro:mujoco_joint name="left_wrist_pitch_joint"/>
+      <xacro:mujoco_joint name="right_wrist_pitch_joint"/>
+      <xacro:mujoco_joint name="left_wrist_yaw_joint"/>
+      <xacro:mujoco_joint name="right_wrist_yaw_joint"/>
+
+      <!-- Left Hand Finger Joints -->
+      <xacro:mujoco_joint name="left_hand_thumb_0_joint"/>
+      <xacro:mujoco_joint name="left_hand_thumb_1_joint"/>
+      <xacro:mujoco_joint name="left_hand_thumb_2_joint"/>
+      <xacro:mujoco_joint name="left_hand_middle_0_joint"/>
+      <xacro:mujoco_joint name="left_hand_middle_1_joint"/>
+      <xacro:mujoco_joint name="left_hand_index_0_joint"/>
+      <xacro:mujoco_joint name="left_hand_index_1_joint"/>
+
+      <!-- Right Hand Finger Joints -->
+      <xacro:mujoco_joint name="right_hand_thumb_0_joint"/>
+      <xacro:mujoco_joint name="right_hand_thumb_1_joint"/>
+      <xacro:mujoco_joint name="right_hand_thumb_2_joint"/>
+      <xacro:mujoco_joint name="right_hand_middle_0_joint"/>
+      <xacro:mujoco_joint name="right_hand_middle_1_joint"/>
+      <xacro:mujoco_joint name="right_hand_index_0_joint"/>
+      <xacro:mujoco_joint name="right_hand_index_1_joint"/>
+
+    <!-- IMU Sensor -->
+    <!-- MJCF has sensors: imu_quat, imu_gyro, imu_accel
+         mujoco_ros2_control appends _quat/_gyro/_accel to URDF sensor name -->
+    <sensor name="imu">
+      <param name="mujoco_type">imu</param>
+      <state_interface name="orientation.x"/>
+      <state_interface name="orientation.y"/>
+      <state_interface name="orientation.z"/>
+      <state_interface name="orientation.w"/>
+      <state_interface name="angular_velocity.x"/>
+      <state_interface name="angular_velocity.y"/>
+      <state_interface name="angular_velocity.z"/>
+      <state_interface name="linear_acceleration.x"/>
+      <state_interface name="linear_acceleration.y"/>
+      <state_interface name="linear_acceleration.z"/>
+    </sensor>
+
+  </ros2_control>
+
+  </xacro:macro>
+
+</robot>

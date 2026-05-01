@@ -1,0 +1,21 @@
+<?xml version="1.0"?>
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro" name="g1_29dof_with_hand_rev_1_0">
+
+  <!-- Real hardware configuration arguments -->
+  <xacro:arg name="network_interface" default="eth0"/>
+  <xacro:arg name="with_hands" default="true"/>
+  <xacro:arg name="motor_temp_warn_threshold" default="120"/>
+
+  <!-- Include the robot description (links, joints, meshes, inertias) -->
+  <xacro:include filename="$(find unitree_g1_description)/urdf/g1_29dof_with_hand_rev_1_0_fixed.urdf"/>
+
+  <!-- Include real hardware ros2_control configuration -->
+  <xacro:include filename="$(find unitree_g1_description)/urdf/g1_real_ros2_control.urdf.xacro"/>
+
+  <!-- Instantiate real hardware ros2_control interface -->
+  <xacro:g1_real_ros2_control
+    network_interface="$(arg network_interface)"
+    with_hands="$(arg with_hands)"
+    motor_temp_warn_threshold="$(arg motor_temp_warn_threshold)"/>
+
+</robot>
