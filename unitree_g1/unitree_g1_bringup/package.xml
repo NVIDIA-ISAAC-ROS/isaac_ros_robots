@@ -1,0 +1,70 @@
+<?xml version="1.0"?>
+
+<!--
+ SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+
+ Licensed under the Apache License, Version 2.0 (the "License");
+ you may not use this file except in compliance with the License.
+ You may obtain a copy of the License at
+
+ http://www.apache.org/licenses/LICENSE-2.0
+
+ Unless required by applicable law or agreed to in writing, software
+ distributed under the License is distributed on an "AS IS" BASIS,
+ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ See the License for the specific language governing permissions and
+ limitations under the License.
+
+ SPDX-License-Identifier: Apache-2.0
+-->
+
+<?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
+<package format="3">
+  <name>unitree_g1_bringup</name>
+  <version>4.4.0</version>
+  <description>Launch files and configurations for bringing up Unitree G1 robot</description>
+  <maintainer email="isaac-ros-maintainers@nvidia.com">Isaac ROS Maintainers</maintainer>
+  <license>Apache-2.0</license>
+
+  <buildtool_depend>ament_cmake</buildtool_depend>
+
+  <!-- Dependencies -->
+  <exec_depend>unitree_g1_description</exec_depend>
+  <exec_depend>controller_manager</exec_depend>
+  <exec_depend>joint_state_broadcaster</exec_depend>
+  <exec_depend>imu_sensor_broadcaster</exec_depend>
+  <exec_depend>joint_trajectory_controller</exec_depend>
+  <exec_depend>forward_command_controller</exec_depend>
+  <exec_depend>robot_state_publisher</exec_depend>
+  <exec_depend>launch</exec_depend>
+  <exec_depend>launch_ros</exec_depend>
+  <exec_depend>xacro</exec_depend>
+  <exec_depend>rviz2</exec_depend>
+  <exec_depend>foxglove_bridge</exec_depend>
+  <exec_depend>tf2_ros</exec_depend>
+  <exec_depend>isaac_ros_deploy_bringup</exec_depend>
+  <exec_depend>isaac_ros_deploy_converters</exec_depend>
+  <exec_depend>isaac_ros_deploy_ros2_control</exec_depend>
+  <exec_depend>isaac_ros_cumotion_controllers</exec_depend>
+  <exec_depend>isaac_ros_deploy_interfaces</exec_depend>
+  <exec_depend>sensor_msgs</exec_depend>
+
+  <exec_depend>unitree_g1_ros2_control</exec_depend>
+
+  <exec_depend>isaac_ros_agile_unitree_g1</exec_depend>
+
+  <!-- Test dependencies -->
+  <test_depend>isaac_ros_deploy_ros2_control</test_depend>
+  <test_depend>ament_cmake_pytest</test_depend>
+  <test_depend>launch_testing_ament_cmake</test_depend>
+  <test_depend>launch_testing</test_depend>
+  <test_depend>python3-pytest</test_depend>
+  <test_depend>controller_manager_msgs</test_depend>
+  <exec_depend>mujoco_ros2_control</exec_depend>
+  <test_depend>isaac_ros_deploy_converters</test_depend>
+  <test_depend>std_srvs</test_depend>
+
+  <export>
+    <build_type>ament_cmake</build_type>
+  </export>
+</package>

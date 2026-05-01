@@ -1,0 +1,33 @@
+<?xml version="1.0"?>
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro" name="g1_29dof_with_hand_rev_1_0">
+
+  <!-- Robot selection: unitree_g1_mujoco or unitree_g1_real -->
+  <xacro:arg name="robot" default="unitree_g1_mujoco"/>
+
+  <!-- MuJoCo simulation arguments -->
+  <xacro:arg name="mujoco_model_path" default=""/>
+  <xacro:arg name="enable_viewer" default="true"/>
+
+  <!-- Real hardware arguments -->
+  <xacro:arg name="network_interface" default="eth0"/>
+  <xacro:arg name="with_hands" default="false"/>
+  <xacro:arg name="motor_temp_warn_threshold" default="120"/>
+
+  <!-- Include the robot description -->
+  <xacro:include filename="$(find unitree_g1_description)/urdf/g1_29dof_with_hand_rev_1_0_fixed.urdf"/>
+
+  <!-- Include ros2_control configurations based on robot type -->
+  <xacro:if value="${'$(arg robot)' == 'unitree_g1_mujoco'}">
+    <xacro:include filename="$(find unitree_g1_description)/urdf/g1_ros2_control.urdf.xacro"/>
+    <xacro:g1_ros2_control mujoco_model_path="$(arg mujoco_model_path)" enable_viewer="$(arg enable_viewer)"/>
+  </xacro:if>
+
+  <xacro:if value="${'$(arg robot)' == 'unitree_g1_real'}">
+    <xacro:include filename="$(find unitree_g1_description)/urdf/g1_real_ros2_control.urdf.xacro"/>
+    <xacro:g1_real_ros2_control
+      network_interface="$(arg network_interface)"
+      with_hands="$(arg with_hands)"
+      motor_temp_warn_threshold="$(arg motor_temp_warn_threshold)"/>
+  </xacro:if>
+
+</robot>

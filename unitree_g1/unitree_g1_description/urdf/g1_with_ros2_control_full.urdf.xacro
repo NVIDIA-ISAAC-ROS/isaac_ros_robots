@@ -1,0 +1,12 @@
+<?xml version="1.0"?>
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro" name="g1_29dof_with_hand_rev_1_0">
+
+  <xacro:arg name="mujoco_model_path" default=""/>
+  <xacro:arg name="enable_viewer" default="true"/>
+
+  <xacro:include filename="$(find unitree_g1_description)/urdf/g1_29dof_with_hand_rev_1_0_fixed.urdf"/>
+
+  <xacro:include filename="$(find unitree_g1_description)/urdf/g1_ros2_control.urdf.xacro"/>
+  <xacro:g1_ros2_control mujoco_model_path="$(arg mujoco_model_path)" enable_viewer="$(arg enable_viewer)"/>
+
+</robot>
