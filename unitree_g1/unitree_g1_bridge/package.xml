@@ -21,7 +21,7 @@
 <?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
 <package format="3">
   <name>unitree_g1_bridge</name>
-  <version>4.4.0</version>
+  <version>4.5.0</version>
   <description>
     Lightweight ROS 2 bridge that converts geometry_msgs/Twist on /cmd_vel
     into unitree_api/msg/Request messages on /api/sport/request for the

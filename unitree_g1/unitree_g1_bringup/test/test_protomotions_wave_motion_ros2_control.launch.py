@@ -9,17 +9,17 @@ This test verifies that the inference_controller can track reference motions
 and keep the robot stable (not falling) for a specified duration.
 """
 
-import unittest
 from pathlib import Path
+import unittest
 
-import launch
-import launch_testing
-import launch_testing.actions
 from ament_index_python.packages import get_package_share_directory
+import launch
 from launch.actions import IncludeLaunchDescription
 from launch.launch_description_sources import PythonLaunchDescriptionSource
+import launch_testing
+import launch_testing.actions
 
-from mujoco_test_helpers import MujocoControllerManagerTestBase, has_display
+from mujoco_test_helpers import has_display, MujocoControllerManagerTestBase
 
 
 def generate_test_description():
@@ -54,6 +54,10 @@ class TestInferenceController(MujocoControllerManagerTestBase):
     """Test that the inference_controller keeps the robot stable."""
 
     CONTROLLERS = ["inference_controller", "safety_controller"]
+    # AGILE/protomotions defers its core until its first input topic arrives;
+    # gate reset on the latched is_active signal so the policy is actually
+    # producing commands.
+    READY_CONTROLLERS = ["inference_controller"]
     ROOT_FRAME = "pelvis"
 
 

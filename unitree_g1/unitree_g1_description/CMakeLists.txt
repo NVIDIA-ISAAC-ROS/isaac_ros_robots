@@ -139,8 +139,14 @@ foreach(MESH_NAME ${MESH_NAMES})
   )
 endforeach()
 
+# Remove previously generated files so the patch always applies cleanly from scratch.
+# Without this, --forward silently skips new-file hunks whose targets already exist.
+file(REMOVE
+  "${MUJOCO_WORK_DIR}/unitree_robots/g1/g1_29dof_with_hand.xml"
+  "${MUJOCO_WORK_DIR}/unitree_robots/g1/scene_29dof_with_hand.xml"
+)
+
 # Apply patch to create with_hand versions.
-# Use --forward to skip already-applied hunks, and -r /dev/null to avoid .rej files.
 message(STATUS "Applying patch to create G1 with hand models...")
 execute_process(
   COMMAND patch --forward --reject-file=/dev/null -p0 -i ${PATCH_FILE}

@@ -95,13 +95,6 @@ if(BUILD_TESTING)
   add_ros_isolated_launch_test(test/test_agile_velocity_inference_graph.launch.py
     TIMEOUT 120
   )
-
-  # GR00T N1.6 apple-to-plate inference graph integration test.
-  # Disabled: policy requires camera input not available in CI, so the test
-  # only sleeps and cannot verify any meaningful pipeline behavior.
-  # add_ros_isolated_launch_test(test/test_gr00t_n16_inference_graph.launch.py
-  #   TIMEOUT 120
-  # )
 endif()
 
 ament_package()

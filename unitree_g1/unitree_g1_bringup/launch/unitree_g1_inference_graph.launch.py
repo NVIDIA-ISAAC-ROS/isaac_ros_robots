@@ -8,7 +8,6 @@
 from pathlib import Path
 from typing import Any
 
-import yaml
 from ament_index_python.packages import get_package_share_directory
 from launch import LaunchContext, LaunchDescription
 from launch.actions import (
@@ -19,10 +18,17 @@ from launch.actions import (
 )
 from launch.conditions import IfCondition
 from launch.launch_description_sources import PythonLaunchDescriptionSource
-from launch.substitutions import Command, FindExecutable, LaunchConfiguration, PathJoinSubstitution
+from launch.substitutions import (
+    Command,
+    FindExecutable,
+    LaunchConfiguration,
+    PathJoinSubstitution,
+    TextSubstitution,
+)
 from launch_ros.actions import Node, SetRemap
 from launch_ros.descriptions import ParameterValue
 from launch_ros.substitutions import FindPackageShare
+import yaml
 
 
 def _load_controller_groups() -> dict[str, Any]:
@@ -40,21 +46,6 @@ INPUT_KIND_TO_TOPIC = {
     "state/joint/velocity": "/joint_states",
     "state/body/rotation": "/imu_sensor_broadcaster/imu",
     "state/body/angular_velocity": "/imu_sensor_broadcaster/imu",
-    "state/camera/image": "/camera/image_raw",
-}
-
-# Standard output kind-to-topic mappings for the inference graph.
-# Maps output kinds to the ROS topics that the ImpedanceController subscribes to.
-OUTPUT_KIND_TO_TOPIC = {
-    "target/joint/position": "joint_commands",
-    "kp": "joint_commands",
-    "kd": "joint_commands",
-    # Legacy kind names (used by protomotions policies).
-    # TODO(lgulich): Figure out how we can get rid of these.
-    "joint_pos_targets": "joint_commands",
-    "actions": "joint_commands",
-    "stiffness_targets": "joint_commands",
-    "damping_targets": "joint_commands",
 }
 
 
@@ -81,13 +72,19 @@ def generate_launch_description() -> LaunchDescription:
             description='[MuJoCo only] Set to true to enable the MuJoCo viewer GUI.',
         ),
         DeclareLaunchArgument(
+            'mujoco_model_path',
+            default_value='',
+            description='[MuJoCo only] Absolute path to the MuJoCo scene XML. '
+            'Defaults to unitree_g1_description/mjcf/scene_29dof_with_hand.xml.',
+        ),
+        DeclareLaunchArgument(
             'use_foxglove',
             default_value='true',
             description='Start Foxglove Studio bridge for visualization.',
         ),
         DeclareLaunchArgument(
             'publish_rate',
-            default_value='50.0',
+            default_value='5.0',
             description='Rate at which InputBuilderNode publishes (Hz).',
         ),
         DeclareLaunchArgument(
@@ -106,6 +103,15 @@ def generate_launch_description() -> LaunchDescription:
             default_value='eno1',
             description='[Real hardware only] Network interface for G1 communication.',
         ),
+        DeclareLaunchArgument(
+            'inference_config_path',
+            default_value='',
+            description=(
+                'Absolute path to a LEAPP policy YAML (*.yaml). ONNX weights must reside '
+                "in the YAML's directory. Empty string uses controller_groups.yaml for "
+                'initial_controller_group.'
+            ),
+        ),
     ]
 
     return LaunchDescription(
@@ -121,9 +127,14 @@ def launch_setup(context: LaunchContext) -> list[Any]:
     group = context.launch_configurations.get("initial_controller_group", "agile_velocity")
     group_config = CONTROLLER_GROUPS[group]
 
-    data_package = group_config.get("data_package", "unitree_g1_bringup")
-    data_pkg_share = Path(get_package_share_directory(data_package))
-    config_path = str(data_pkg_share / 'data' / group_config['config'])
+    inference_config_override = context.launch_configurations.get(
+        "inference_config_path", "").strip()
+    if inference_config_override:
+        config_path = str(Path(inference_config_override).expanduser().resolve())
+    else:
+        data_package = group_config.get("data_package", "unitree_g1_bringup")
+        data_pkg_share = Path(get_package_share_directory(data_package))
+        config_path = str(data_pkg_share / 'data' / group_config['config'])
 
     # Build source_to_topic: standard hardware mappings + policy-specific mappings.
     source_to_topic = dict(INPUT_KIND_TO_TOPIC)
@@ -131,19 +142,11 @@ def launch_setup(context: LaunchContext) -> list[Any]:
         source_to_topic.update(group_config["source_to_topic"])
     source_to_topic_str = ",".join(f"{k}:{v}" for k, v in source_to_topic.items())
 
-    # Build output_to_topic by parsing YAML outputs and mapping name→topic via kind.
-    config_yaml = yaml.safe_load(Path(config_path).read_text())
-    output_to_topic = {}
-    for model_config in config_yaml.get("models", {}).values():
-        for output in model_config.get("outputs", []):
-            kind = output.get("kind", "")
-            if kind in OUTPUT_KIND_TO_TOPIC:
-                output_to_topic[output["name"]] = OUTPUT_KIND_TO_TOPIC[kind]
-    output_to_topic_str = ",".join(f"{k}:{v}" for k, v in output_to_topic.items())
-
     # Robot description for command visualization (ghost robot).
     urdf_xacro_path = str(description_pkg_share / 'urdf' / 'g1_with_ros2_control_full.urdf.xacro')
-    mujoco_model_path = str(description_pkg_share / 'mjcf' / 'scene_29dof_with_hand.xml')
+    mujoco_model_path = context.launch_configurations.get('mujoco_model_path', '')
+    if not mujoco_model_path:
+        mujoco_model_path = str(description_pkg_share / 'mjcf' / 'scene_29dof_with_hand.xml')
     robot_description_content = Command([
         PathJoinSubstitution([FindExecutable(name='xacro')]),
         ' ', urdf_xacro_path,
@@ -163,19 +166,29 @@ def launch_setup(context: LaunchContext) -> list[Any]:
             ])
         ),
         launch_arguments={
+            'initial_controller_group': LaunchConfiguration('initial_controller_group'),
             'hardware_type': LaunchConfiguration('hardware_type'),
             'enable_viewer': LaunchConfiguration('enable_viewer'),
+            'mujoco_model_path': LaunchConfiguration('mujoco_model_path'),
             'use_foxglove': LaunchConfiguration('use_foxglove'),
             'use_reference_motion': LaunchConfiguration('use_reference_motion'),
             'network_interface': LaunchConfiguration('network_interface'),
-            'initial_controller': 'safety_controller,forward_joint_command_controller',
+            'initial_controller': ','.join(
+                group_config.get(
+                    'controllers',
+                    ['safety_controller', 'forward_joint_command_controller'],
+                )
+            ),
         }.items(),
     )
 
     inference_pipeline = GroupAction([
         # Remap output topics from namespace-relative to global.
         SetRemap(src='joint_commands', dst='/joint_commands'),
+        SetRemap(src='joint_commands_trajectory',
+                 dst='/joint_commands_trajectory'),
         SetRemap(src='body_commands', dst='/body_commands'),
+        SetRemap(src='cmd_vel', dst='/cmd_vel'),
         IncludeLaunchDescription(
             PythonLaunchDescriptionSource(
                 PathJoinSubstitution([
@@ -185,10 +198,9 @@ def launch_setup(context: LaunchContext) -> list[Any]:
                 ])
             ),
             launch_arguments={
-                'config_path': config_path,
+                'config_path': TextSubstitution(text=config_path),
                 'publish_rate': LaunchConfiguration('publish_rate'),
                 'source_to_topic': source_to_topic_str,
-                'output_to_topic': output_to_topic_str,
             }.items(),
         ),
     ])

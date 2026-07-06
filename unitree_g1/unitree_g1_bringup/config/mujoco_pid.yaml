@@ -1,3 +1,5 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
 /**:
   ros__parameters:
     pid_gains:
@@ -226,3 +228,11 @@
           i: 0.0
           d: 0.1
 
+    mujoco_plugins:
+      virtual_gantry:
+        type: "mujoco_ros2_control_plugins/VirtualGantryPlugin"
+        body_name: "torso_link"
+        body_offset: [0.0, 0.0, 0.3]
+        kp_pos: 5000.0
+        kd_pos: 800.0
+        anchor_z: 1.5

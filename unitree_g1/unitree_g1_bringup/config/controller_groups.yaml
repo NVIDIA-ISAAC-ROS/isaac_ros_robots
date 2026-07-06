@@ -1,3 +1,8 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+# Optional split-blend: set command_prefix_lower_body + command_prefix_upper_body
+# instead of a single command_prefix to get independently-tunable blend_ratios.
+
 agile_velocity:
   data_package: isaac_ros_agile_unitree_g1
   config: agile_velocity.yaml
@@ -9,6 +14,7 @@ agile_velocity:
   controllers:
     - safety_controller
     - inference_controller
+    - upper_body_forward_joint_command_controller
 
 agile_velocity_with_ik:
   data_package: isaac_ros_agile_unitree_g1
@@ -18,12 +24,12 @@ agile_velocity_with_ik:
     command/body/velocity: /cmd_vel
   command_prefix: safety_controller
   command_suffix: _raw
-  blend_strategy: linear_interpolate
+  blend_strategy: interpolate
   controllers:
     - safety_controller
     - inference_controller
     - ik_controller
-    - finger_controller
+    - fingers_forward_joint_command_controller
 
 protomotions_wave_motion:
   data_package: isaac_ros_protomotions_unitree_g1
@@ -39,11 +45,34 @@ protomotions_wave_motion:
     - safety_controller
     - inference_controller
 
-gr00t_n16_apple_to_plate:
-  data_package: isaac_ros_gr00t_n16_unitree_g1
-  config: gr00t_n16_apple_to_plate.yaml
+gr00t_n17_apple_to_plate:
+  data_package: isaac_ros_gr00t_unitree_g1_install
+  config: gr00t_n17_apple_to_plate.yaml
+  agile_data_package: isaac_ros_agile_unitree_g1
+  agile_config: agile_velocity.yaml
+  source_to_topic:
+    command/body/velocity: /cmd_vel
+    velocity_command: /cmd_vel
+    state/camera/image: /realsense_d435_rgb/color/image_raw
+    initial_noise: initial_noise
+  command_prefix_lower_body: safety_controller_lower_body
+  command_prefix_upper_body: safety_controller_upper_body
+  command_suffix: _raw
+  controllers:
+    - safety_controller_lower_body
+    - safety_controller_upper_body
+    - inference_controller
+    - upper_body_forward_joint_command_controller
+
+gr00t_n17_apple_to_plate_no_agile:
+  data_package: isaac_ros_gr00t_unitree_g1_install
+  config: gr00t_n17_apple_to_plate.yaml
+  source_to_topic:
+    velocity_command: /cmd_vel
+    state/camera/image: /realsense_d435_rgb/color/image_raw
+    initial_noise: initial_noise
   command_prefix: safety_controller
   command_suffix: _raw
   controllers:
     - safety_controller
-    - forward_joint_command_controller
+    - upper_body_forward_joint_command_controller

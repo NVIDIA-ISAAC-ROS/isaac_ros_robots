@@ -9,17 +9,17 @@ This test verifies that the agile_velocity policy can keep the robot
 stable (not falling) when given zero velocity commands.
 """
 
-import unittest
 from pathlib import Path
+import unittest
 
-import launch
-import launch_testing
-import launch_testing.actions
 from ament_index_python.packages import get_package_share_directory
+import launch
 from launch.actions import IncludeLaunchDescription
 from launch.launch_description_sources import PythonLaunchDescriptionSource
+import launch_testing
+import launch_testing.actions
 
-from mujoco_test_helpers import MujocoControllerManagerTestBase, has_display
+from mujoco_test_helpers import has_display, MujocoControllerManagerTestBase
 
 
 def generate_test_description():
@@ -48,7 +48,14 @@ def generate_test_description():
 class TestVelocityController(MujocoControllerManagerTestBase):
     """Test that the velocity policy keeps the robot stable with zero commands."""
 
-    CONTROLLERS = ["inference_controller"]
+    CONTROLLERS = [
+        "inference_controller",
+        "upper_body_forward_joint_command_controller",
+    ]
+    # AGILE defers its core until first /cmd_vel arrives — wait on its latched
+    # `is_active` signal before resetting so the reset happens while the policy
+    # is actually producing leg commands, not during the pre-core free-fall.
+    READY_CONTROLLERS = ["inference_controller"]
     PUBLISH_CMD_VEL = True
     ROOT_FRAME = "pelvis"
 

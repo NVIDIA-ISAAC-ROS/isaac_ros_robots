@@ -1,4 +1,8 @@
 <?xml version="1.0"?>
+<!--
+SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+SPDX-License-Identifier: Apache-2.0
+-->
 <robot xmlns:xacro="http://www.ros.org/wiki/xacro">
 
   <!-- Helper macro for joint interfaces with official mujoco_ros2_control -->
@@ -32,6 +36,9 @@
         <param name="headless">${'false' if str(enable_viewer).lower() == 'true' else 'true'}</param>
         <param name="sim_speed_factor">1.0</param>
         <param name="odom_frame">world</param>
+        <!-- Match the real RealSense D435 default RGB stream rate so sim
+             and real data-collection pipelines produce comparable bags. -->
+        <param name="camera_publish_rate">30.0</param>
       </hardware>
 
       <!-- Leg Joints -->
@@ -86,6 +93,19 @@
       <xacro:mujoco_joint name="right_hand_middle_1_joint"/>
       <xacro:mujoco_joint name="right_hand_index_0_joint"/>
       <xacro:mujoco_joint name="right_hand_index_1_joint"/>
+
+    <!-- RealSense D435 RGB Camera -->
+    <!-- Override default MuJoCo camera topics to match the real RealSense
+         driver topic structure, so sim and real use identical topic names.
+         The real driver is launched with `name: realsense_d435_rgb,
+         namespace: ''` (see unitree_g1_inference_graph.launch.py), which
+         publishes `/realsense_d435_rgb/color/image_raw`. -->
+    <sensor name="realsense_d435_rgb">
+      <param name="frame_name">realsense_d435_rgb_optical_frame</param>
+      <param name="image_topic">realsense_d435_rgb/color/image_raw</param>
+      <param name="info_topic">realsense_d435_rgb/color/camera_info</param>
+      <param name="depth_topic">realsense_d435_rgb/depth/image_rect_raw</param>
+    </sensor>
 
     <!-- IMU Sensor -->
     <!-- MJCF has sensors: imu_quat, imu_gyro, imu_accel

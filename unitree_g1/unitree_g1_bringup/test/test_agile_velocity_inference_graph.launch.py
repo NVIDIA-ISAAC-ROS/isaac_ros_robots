@@ -10,17 +10,18 @@ OutputBuilderNode) can keep the robot stable (not falling) when running the
 agile_velocity policy with zero velocity commands.
 """
 
-import unittest
 from pathlib import Path
+from typing import ClassVar
+import unittest
 
-import launch
-import launch_testing
-import launch_testing.actions
 from ament_index_python.packages import get_package_share_directory
+import launch
 from launch.actions import IncludeLaunchDescription
 from launch.launch_description_sources import PythonLaunchDescriptionSource
+import launch_testing
+import launch_testing.actions
 
-from mujoco_test_helpers import MujocoInferenceGraphTestBase, has_display
+from mujoco_test_helpers import has_display, MujocoInferenceGraphTestBase
 
 
 def generate_test_description():
@@ -48,6 +49,7 @@ def generate_test_description():
 class TestAgileVelocityPrivilegedInferenceGraph(MujocoInferenceGraphTestBase):
     """Test that the agile_velocity policy keeps the robot stable via inference graph."""
 
+    CONTROLLERS: ClassVar[list[str]] = ["upper_body_forward_joint_command_controller"]
     PUBLISH_CMD_VEL = True
     ROOT_FRAME = "pelvis"
 
