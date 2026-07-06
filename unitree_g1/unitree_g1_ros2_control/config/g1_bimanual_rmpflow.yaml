@@ -23,21 +23,21 @@ joint_limit_buffers: [.0873, .0873, .0873, .0873, .0873, .0873, .0873,
 
 rmp_params:
   cspace_target_rmp:
-    metric_scalar: 80.
+    metric_scalar: 0.8
     position_gain: 100.
     damping_gain: 70.
     robust_position_term_thresh: .5
-    inertia: 1.
+    inertia: 0.01
   cspace_trajectory_rmp:
     p_gain: 80.
     d_gain: 10.
     ff_gain: .25
-    weight: 50.
+    weight: 0.5
   cspace_affine_rmp:
     final_handover_time_std_dev: .25
-    weight: 2000.
+    weight: 20.
   joint_limit_rmp:
-    metric_scalar: 500.
+    metric_scalar: 5.
     metric_length_scale: .05
     metric_exploder_eps: 1e-3
     metric_velocity_gate_length_scale: .05
@@ -49,22 +49,22 @@ rmp_params:
     max_velocity: 2.15
     velocity_damping_region: 0.5
     damping_gain: 300.
-    metric_weight: 100.
+    metric_weight: 1.
   target_rmp:
     accel_p_gain: 75.
     accel_d_gain: 40.
     accel_norm_eps: .1 # 0.075 m/s^2 Must be positive.
     metric_alpha_length_scale: .05
     min_metric_alpha: .01
-    max_metric_scalar: 10000.
-    min_metric_scalar: 2500.
+    max_metric_scalar: 100.
+    min_metric_scalar: 25.
     proximity_metric_boost_scalar: 1.5
     proximity_metric_boost_length_scale: .02
     accept_user_weights: false
   axis_target_rmp:
     accel_p_gain: 20.
     accel_d_gain: 6.0
-    metric_scalar: 600.
+    metric_scalar: 6.
     proximity_metric_boost_scalar: 10.
     proximity_metric_boost_length_scale: .05
     accept_user_weights: false
@@ -76,13 +76,13 @@ rmp_params:
     repulsion_gain: 1000.
     repulsion_std_dev: .01
     metric_modulation_radius: .5
-    metric_scalar: 500.
+    metric_scalar: 5.
     metric_exploder_std_dev: .02
     metric_exploder_eps: .001
   damping_rmp:
     accel_d_gain: 55.
-    metric_scalar: 65.
-    inertia: 100.
+    metric_scalar: 0.65
+    inertia: 500.
 
 canonical_resolve:
   max_acceleration_norm: 40.

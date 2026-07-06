@@ -42,6 +42,16 @@ class TestUnitreeG1BridgeNode(unittest.TestCase):
     def setUp(self):
         self.node = UnitreeG1BridgeNode()
         self.node._req_pub = MagicMock()
+        # Exercise the ack-verification paths in tests.
+        self.node._require_acks = True
+
+        # Bypass /api/sport/response wait: publish via the mock and pretend
+        # the firmware acknowledged immediately with code=0.
+        def fake_publish_and_wait(req, timeout=None):
+            self.node._req_pub.publish(req)
+            return {'code': 0, 'data': ''}
+
+        self.node._publish_and_wait = fake_publish_and_wait
 
     def tearDown(self):
         self.node.destroy_node()
@@ -100,14 +110,39 @@ class TestUnitreeG1BridgeNode(unittest.TestCase):
         assert params['data'] == g1_api.FSM_DAMP
 
     def test_damp_service_response(self):
-        """~/damp should return success=True."""
+        """~/damp should return success=True when the firmware acks."""
         request = Trigger.Request()
         response = Trigger.Response()
 
         result = self.node._damp_cb(request, response)
 
         assert result.success is True
-        assert 'Damp' in result.message
+        assert 'damp' in result.message.lower()
+
+    def test_damp_service_reports_failure_on_rejection(self):
+        """~/damp should return success=False if the firmware rejects."""
+        self.node._publish_and_wait = (
+            lambda req, timeout=None: {'code': 5, 'data': 'busy'}
+        )
+        request = Trigger.Request()
+        response = Trigger.Response()
+
+        result = self.node._damp_cb(request, response)
+
+        assert result.success is False
+        assert 'rejected' in result.message
+        assert 'code=5' in result.message
+
+    def test_damp_service_reports_failure_on_timeout(self):
+        """~/damp should return success=False if no response arrives."""
+        self.node._publish_and_wait = lambda req, timeout=None: None
+        request = Trigger.Request()
+        response = Trigger.Response()
+
+        result = self.node._damp_cb(request, response)
+
+        assert result.success is False
+        assert 'no response' in result.message
 
     # -- standup service tests ------------------------------------------------
 
@@ -141,24 +176,102 @@ class TestUnitreeG1BridgeNode(unittest.TestCase):
         self.node._run_standup_sequence()
 
         calls = self.node._req_pub.publish.call_args_list
-        # Default sequence: FSM 1, FSM 4, FSM 500, then SetBalanceMode(1)
+        # Default sequence: damp(1), lock_stand(4), start(200), then
+        # SetBalanceMode(0)
         assert len(calls) == 4
 
-        fsm_1 = calls[0][0][0]
-        assert fsm_1.header.identity.api_id == g1_api.API_ID_SET_FSM_ID
-        assert json.loads(fsm_1.parameter)['data'] == g1_api.FSM_DAMP
+        fsm_damp = calls[0][0][0]
+        assert fsm_damp.header.identity.api_id == g1_api.API_ID_SET_FSM_ID
+        assert json.loads(fsm_damp.parameter)['data'] == g1_api.FSM_DAMP
 
-        fsm_4 = calls[1][0][0]
-        assert fsm_4.header.identity.api_id == g1_api.API_ID_SET_FSM_ID
-        assert json.loads(fsm_4.parameter)['data'] == g1_api.FSM_STAND_UP
+        fsm_lock = calls[1][0][0]
+        assert fsm_lock.header.identity.api_id == g1_api.API_ID_SET_FSM_ID
+        assert json.loads(fsm_lock.parameter)['data'] == g1_api.FSM_LOCK_STAND
 
-        fsm_500 = calls[2][0][0]
-        assert fsm_500.header.identity.api_id == g1_api.API_ID_SET_FSM_ID
-        assert json.loads(fsm_500.parameter)['data'] == g1_api.FSM_START
+        fsm_start = calls[2][0][0]
+        assert fsm_start.header.identity.api_id == g1_api.API_ID_SET_FSM_ID
+        assert json.loads(fsm_start.parameter)['data'] == g1_api.FSM_START
 
         balance = calls[3][0][0]
         assert balance.header.identity.api_id == g1_api.API_ID_SET_BALANCE_MODE
         assert json.loads(balance.parameter)['data'] == g1_api.BALANCE_STAND
+
+    @patch.object(UnitreeG1BridgeNode, '_interruptible_sleep')
+    def test_standup_aborts_on_rejection(self, mock_sleep):
+        """If a step is rejected, no later steps should be published."""
+        mock_sleep.return_value = None
+
+        # Accept the first two steps, then reject the third.
+        replies = [
+            {'code': 0, 'data': ''},
+            {'code': 0, 'data': ''},
+            {'code': 7, 'data': 'denied'},
+        ]
+
+        def fake(req, timeout=None):
+            self.node._req_pub.publish(req)
+            return replies.pop(0)
+
+        self.node._publish_and_wait = fake
+
+        self.node._run_standup_sequence()
+
+        # Only the first three FSM requests were published; balance + later
+        # steps must not have been sent.
+        calls = self.node._req_pub.publish.call_args_list
+        assert len(calls) == 3
+        assert self.node._standup_in_progress is False
+
+    @patch.object(UnitreeG1BridgeNode, '_interruptible_sleep')
+    def test_standup_aborts_on_timeout(self, mock_sleep):
+        """If a step receives no response, the sequence should abort."""
+        mock_sleep.return_value = None
+
+        def fake(req, timeout=None):
+            self.node._req_pub.publish(req)
+            return None  # simulate timeout
+
+        self.node._publish_and_wait = fake
+
+        # Single attempt, then abort — no later steps should be sent.
+        self.node._run_standup_sequence()
+
+        calls = self.node._req_pub.publish.call_args_list
+        assert len(calls) == 1
+        assert self.node._standup_in_progress is False
+
+    # -- response routing -----------------------------------------------------
+
+    def test_response_callback_wakes_matching_request(self):
+        """Inbound Response should populate the pending slot keyed by id."""
+        import threading
+
+        from unitree_api.msg import Response
+
+        slot = {'event': threading.Event(), 'code': None, 'data': None}
+        self.node._pending[42] = slot
+
+        msg = Response()
+        msg.header.identity.id = 42
+        msg.header.status.code = 0
+        msg.data = 'ok'
+
+        self.node._response_cb(msg)
+
+        assert slot['event'].is_set()
+        assert slot['code'] == 0
+        assert slot['data'] == 'ok'
+
+    def test_response_callback_ignores_unknown_id(self):
+        """Responses with no matching pending request should be no-ops."""
+        from unitree_api.msg import Response
+
+        msg = Response()
+        msg.header.identity.id = 999
+        msg.header.status.code = 0
+
+        # No pending entry registered — should simply not raise.
+        self.node._response_cb(msg)
 
 
 if __name__ == '__main__':

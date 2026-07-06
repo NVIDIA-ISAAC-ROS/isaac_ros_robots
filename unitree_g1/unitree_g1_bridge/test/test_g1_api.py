@@ -35,10 +35,13 @@ class TestConstants:
         assert g1_api.FSM_SIT == 3
 
     def test_fsm_stand_up(self):
-        assert g1_api.FSM_STAND_UP == 4
+        assert g1_api.FSM_STAND_UP == 706
+
+    def test_fsm_lock_stand(self):
+        assert g1_api.FSM_LOCK_STAND == 4
 
     def test_fsm_start(self):
-        assert g1_api.FSM_START == 500
+        assert g1_api.FSM_START == 200
 
     def test_fsm_zero_torque(self):
         assert g1_api.FSM_ZERO_TORQUE == 0
@@ -103,12 +106,12 @@ class TestMakeFsmRequest:
     def test_stand_up_value(self):
         req = g1_api.make_fsm_request(g1_api.FSM_STAND_UP)
         params = json.loads(req.parameter)
-        assert params['data'] == 4
+        assert params['data'] == 706
 
     def test_start_value(self):
         req = g1_api.make_fsm_request(g1_api.FSM_START)
         params = json.loads(req.parameter)
-        assert params['data'] == 500
+        assert params['data'] == 200
 
 
 class TestMakeBalanceModeRequest:

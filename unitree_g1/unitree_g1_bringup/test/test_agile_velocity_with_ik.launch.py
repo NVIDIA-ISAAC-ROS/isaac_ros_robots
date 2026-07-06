@@ -20,7 +20,6 @@ from geometry_msgs.msg import Pose, PoseArray
 import launch
 from launch.actions import IncludeLaunchDescription
 from launch.launch_description_sources import PythonLaunchDescriptionSource
-from launch_ros.actions import Node
 import launch_testing
 import launch_testing.actions
 from mujoco_test_helpers import (
@@ -104,26 +103,9 @@ def generate_test_description():
         }.items(),
     )
 
-    # so the IK controller can look them up without requiring the teleop stack to be running.
-    # cmd_T_ee = identity means the IK tracks reference poses with no frame correction.
-    left_openxr_tf = Node(
-        package="tf2_ros",
-        executable="static_transform_publisher",
-        arguments=["0", "0", "0", "0", "0", "0",
-                   "left_hand_palm_link", "left_hand_palm_link_openxr"],
-    )
-    right_openxr_tf = Node(
-        package="tf2_ros",
-        executable="static_transform_publisher",
-        arguments=["0", "0", "0", "0", "0", "0",
-                   "right_hand_palm_link", "right_hand_palm_link_openxr"],
-    )
-
     return launch.LaunchDescription(
         [
             main_launch,
-            left_openxr_tf,
-            right_openxr_tf,
             launch_testing.actions.ReadyToTest(),
         ]
     )
@@ -133,8 +115,12 @@ class TestAgileVelocityWithIK(MujocoControllerManagerTestBase):
     """Test that agile_velocity_with_ik keeps the robot stable and publishes EE poses."""
 
     CONTROLLERS = [
-        "inference_controller", "safety_controller", "ik_controller", "finger_controller"
+        "inference_controller", "safety_controller", "ik_controller",
+        "fingers_forward_joint_command_controller",
     ]
+    # AGILE defers its core until first /cmd_vel arrives; gate reset on the
+    # latched is_active signal so the policy is actually producing commands.
+    READY_CONTROLLERS = ["inference_controller"]
     PUBLISH_CMD_VEL = True
     ROOT_FRAME = "pelvis"
 
@@ -149,8 +135,8 @@ class TestAgileVelocityWithIK(MujocoControllerManagerTestBase):
             msg = PoseArray()
             msg.header.stamp = cls.node.get_clock().now().to_msg()
             msg.header.frame_id = REFERENCE_FRAME
-            msg.poses.append(_RIGHT_POSE)  # poses[0] = right EE
-            msg.poses.append(_LEFT_POSE)   # poses[1] = left EE
+            msg.poses.append(_LEFT_POSE)   # poses[0] = left EE
+            msg.poses.append(_RIGHT_POSE)  # poses[1] = right EE
             cls._ref_pub.publish(msg)
 
         cls._ref_timer = cls.node.create_timer(1.0 / 50.0, _publish_reference)
