@@ -20,7 +20,7 @@ limitations under the License.
 <?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
 <package format="3">
   <name>unitree_g1_description</name>
-  <version>4.5.0</version>
+  <version>4.6.0</version>
   <description>URDF and MJCF description files for Unitree G1 robot</description>
   <maintainer email="isaac-ros-maintainers@nvidia.com">Isaac ROS Maintainers</maintainer>
   <license>Apache-2.0</license>

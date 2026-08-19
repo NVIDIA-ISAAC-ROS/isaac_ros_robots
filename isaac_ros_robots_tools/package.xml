@@ -20,12 +20,14 @@ limitations under the License.
 <?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
 <package format="3">
   <name>isaac_ros_robots_tools</name>
-  <version>4.5.0</version>
+  <version>4.6.0</version>
   <description>Tools and scripts for robot setup and configuration</description>
   <maintainer email="isaac-ros-maintainers@nvidia.com">Isaac ROS Maintainers</maintainer>
   <license>Apache-2.0</license>
 
   <buildtool_depend>ament_cmake</buildtool_depend>
+
+  <exec_depend>iputils-ping</exec_depend>
 
   <export>
     <build_type>ament_cmake</build_type>

@@ -34,6 +34,7 @@ def generate_test_description():
             "enable_viewer": str(has_display()).lower(),
             "use_foxglove": "false",
             "use_rviz": "false",
+            "auto_start_safety_blend_ratio": "true",
         }.items(),
     )
 

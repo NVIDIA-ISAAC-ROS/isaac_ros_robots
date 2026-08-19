@@ -1,0 +1,24 @@
+<?xml version="1.0"?>
+<!--
+SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+SPDX-License-Identifier: Apache-2.0
+-->
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro" name="g1_29dof_with_hand_rev_1_0">
+
+  <!-- Isaac Sim topic configuration. -->
+  <xacro:arg name="joint_states_topic" default="/isaac_joint_states"/>
+  <xacro:arg name="joint_commands_topic" default="/isaac_joint_commands"/>
+  <xacro:arg name="imu_topic" default="/isaac_imu"/>
+
+  <!-- Robot description (links, joints, meshes, inertias). -->
+  <xacro:include filename="$(find unitree_g1_description)/urdf/g1_29dof_with_hand_rev_1_0_fixed.urdf"/>
+
+  <!-- Isaac Sim ros2_control configuration macros. -->
+  <xacro:include filename="$(find unitree_g1_description)/urdf/g1_isaacsim_ros2_control.urdf.xacro"/>
+
+  <xacro:g1_isaacsim_ros2_control
+    joint_states_topic="$(arg joint_states_topic)"
+    joint_commands_topic="$(arg joint_commands_topic)"
+    imu_topic="$(arg imu_topic)"/>
+
+</robot>
