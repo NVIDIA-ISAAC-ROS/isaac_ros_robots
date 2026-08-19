@@ -31,20 +31,6 @@ agile_velocity_with_ik:
     - ik_controller
     - fingers_forward_joint_command_controller
 
-protomotions_wave_motion:
-  data_package: isaac_ros_protomotions_unitree_g1
-  config: unitree_g1_wave_motion_policy_leapp.yaml
-  model: unitree_g1_wave_motion_policy.onnx
-  source_to_topic:
-    command/body/rotation: /reference_motion_node/body_command
-    command/joint/position: /reference_motion_node/joint_command
-    command/joint/velocity: /reference_motion_node/joint_command
-  command_prefix: safety_controller
-  command_suffix: _raw
-  controllers:
-    - safety_controller
-    - inference_controller
-
 gr00t_n17_apple_to_plate:
   data_package: isaac_ros_gr00t_unitree_g1_install
   config: gr00t_n17_apple_to_plate.yaml

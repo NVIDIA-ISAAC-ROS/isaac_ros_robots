@@ -273,7 +273,7 @@ inference_controller:
     decimation: 4
 
 # Safety Core Controller Configuration.
-# Note: blend_ratio will be overridden by launch file (hardware-specific defaults).
+# Note: blend_ratio stays at 0.0 until raised at runtime (see the deploy tutorial).
 safety_controller:
   ros__parameters:
     # Gravity compensation applied to these joints (upper body / arms); URDF injected by the launch file.
@@ -307,7 +307,7 @@ safety_controller:
     # 0.0 = policy disabled (zero output), 1.0 = policy fully enabled
     # Adjustable at runtime via: ros2 param set /safety_controller blend_ratio <value>
     # Or use rqt_reconfigure GUI for easier adjustment
-    blend_ratio: 0.0  # Overridden by launch file: 1.0 for sim, 0.0 for real
+    blend_ratio: 0.0  # Gated on every hardware type; raise to 1.0 after /cmd_vel
     max_blend_ratio_speed: 1.0  # Max rate of change for blend_ratio (units/second)
     out_of_domain_detection:
       velocity_threshold:

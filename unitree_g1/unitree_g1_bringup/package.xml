@@ -20,7 +20,7 @@ limitations under the License.
 <?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
 <package format="3">
   <name>unitree_g1_bringup</name>
-  <version>4.5.0</version>
+  <version>4.6.0</version>
   <description>Launch files and configurations for bringing up Unitree G1 robot</description>
   <maintainer email="isaac-ros-maintainers@nvidia.com">Isaac ROS Maintainers</maintainer>
   <license>Apache-2.0</license>
@@ -35,6 +35,8 @@ limitations under the License.
   <exec_depend>joint_trajectory_controller</exec_depend>
   <exec_depend>forward_command_controller</exec_depend>
   <exec_depend>robot_state_publisher</exec_depend>
+  <exec_depend>sdformat_urdf</exec_depend>
+  <exec_depend>sdformat_vendor</exec_depend>
   <exec_depend>launch</exec_depend>
   <exec_depend>launch_ros</exec_depend>
   <exec_depend>xacro</exec_depend>
@@ -46,7 +48,10 @@ limitations under the License.
   <exec_depend>isaac_ros_deploy_ros2_control</exec_depend>
   <exec_depend>isaac_ros_cumotion_controllers</exec_depend>
   <exec_depend>isaac_ros_deploy_interfaces</exec_depend>
+  <exec_depend>isaac_ros_robots_tools</exec_depend>
+  <exec_depend>mujoco_ros2_control</exec_depend>
   <exec_depend>sensor_msgs</exec_depend>
+  <exec_depend>std_srvs</exec_depend>
 
   <exec_depend>unitree_g1_ros2_control</exec_depend>
 
@@ -59,9 +64,8 @@ limitations under the License.
   <test_depend>launch_testing</test_depend>
   <test_depend>python3-pytest</test_depend>
   <test_depend>controller_manager_msgs</test_depend>
-  <exec_depend>mujoco_ros2_control</exec_depend>
+  <test_depend>mujoco_ros2_control</test_depend>
   <test_depend>isaac_ros_deploy_converters</test_depend>
-  <test_depend>std_srvs</test_depend>
 
   <export>
     <build_type>ament_cmake</build_type>

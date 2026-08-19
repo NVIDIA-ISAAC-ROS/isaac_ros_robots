@@ -20,7 +20,7 @@ limitations under the License.
 
 <package format="3">
   <name>unitree_g1_ros2_control</name>
-  <version>4.5.0</version>
+  <version>4.6.0</version>
   <description>ROS2 control hardware interface for Unitree G1 humanoid robot using the Unitree SDK</description>
   <maintainer email="isaac-ros-maintainers@nvidia.com">Isaac ROS Maintainers</maintainer>
   <license>Apache-2.0</license>

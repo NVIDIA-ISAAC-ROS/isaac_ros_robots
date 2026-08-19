@@ -1,7 +1,20 @@
 #!/usr/bin/env python3
 
-# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
+# Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 
 """Launch file for Unitree G1 with node-based inference pipeline."""
 
@@ -39,6 +52,20 @@ def _load_controller_groups() -> dict[str, Any]:
 
 CONTROLLER_GROUPS = _load_controller_groups()
 
+
+def _resolve_inference_graph_config_path(
+    group_config: dict[str, Any],
+    inference_graph_config_override: str,
+) -> str:
+    """Resolve the LEAPP YAML path used by the node-based inference graph."""
+    if inference_graph_config_override:
+        return str(Path(inference_graph_config_override).expanduser().resolve())
+
+    data_package = group_config.get("data_package", "unitree_g1_bringup")
+    data_pkg_share = Path(get_package_share_directory(data_package))
+    return str(data_pkg_share / "data" / group_config["config"])
+
+
 # Standard source-to-topic mappings for the inference graph.
 # These map hardware state kinds to the ROS topics published by ros2_control broadcasters.
 INPUT_KIND_TO_TOPIC = {
@@ -56,8 +83,9 @@ def generate_launch_description() -> LaunchDescription:
         DeclareLaunchArgument(
             'hardware_type',
             default_value='mujoco',
-            description="Hardware type: 'mujoco' for MuJoCo, 'real' for physical G1 robot.",
-            choices=['mujoco', 'real'],
+            description="Hardware type: 'mujoco' for MuJoCo, 'isaacsim' for Isaac Sim, "
+            "'real' for physical G1 robot.",
+            choices=['mujoco', 'real', 'isaacsim'],
         ),
         # Common arguments
         DeclareLaunchArgument(
@@ -104,13 +132,37 @@ def generate_launch_description() -> LaunchDescription:
             description='[Real hardware only] Network interface for G1 communication.',
         ),
         DeclareLaunchArgument(
-            'inference_config_path',
+            'inference_controller_config_path',
             default_value='',
             description=(
-                'Absolute path to a LEAPP policy YAML (*.yaml). ONNX weights must reside '
-                "in the YAML's directory. Empty string uses controller_groups.yaml for "
-                'initial_controller_group.'
+                'Absolute path to the LEAPP policy YAML for the ros2_control '
+                'inference_controller. Empty string lets the controller manager '
+                'use the selected controller group default.'
             ),
+        ),
+        DeclareLaunchArgument(
+            'inference_graph_config_path',
+            default_value='',
+            description=(
+                'Absolute path to the LEAPP policy YAML for the node-based inference '
+                'graph. Empty string uses the selected controller group config.'
+            ),
+        ),
+        DeclareLaunchArgument(
+            'triton_cpu_models',
+            default_value='',
+            description='Comma-separated LEAPP model names to run on Triton CPU.',
+        ),
+        DeclareLaunchArgument(
+            'joint_commands_trajectory_output_topic',
+            default_value='/joint_commands_trajectory',
+            description='Global topic that the inference graph publishes joint command '
+                        'trajectories to.',
+        ),
+        DeclareLaunchArgument(
+            'cmd_vel_output_topic',
+            default_value='/cmd_vel',
+            description='Global topic that the inference graph publishes velocity commands to.',
         ),
     ]
 
@@ -127,14 +179,10 @@ def launch_setup(context: LaunchContext) -> list[Any]:
     group = context.launch_configurations.get("initial_controller_group", "agile_velocity")
     group_config = CONTROLLER_GROUPS[group]
 
-    inference_config_override = context.launch_configurations.get(
-        "inference_config_path", "").strip()
-    if inference_config_override:
-        config_path = str(Path(inference_config_override).expanduser().resolve())
-    else:
-        data_package = group_config.get("data_package", "unitree_g1_bringup")
-        data_pkg_share = Path(get_package_share_directory(data_package))
-        config_path = str(data_pkg_share / 'data' / group_config['config'])
+    inference_graph_config_override = context.launch_configurations.get(
+        "inference_graph_config_path", "").strip()
+    config_path = _resolve_inference_graph_config_path(
+        group_config, inference_graph_config_override)
 
     # Build source_to_topic: standard hardware mappings + policy-specific mappings.
     source_to_topic = dict(INPUT_KIND_TO_TOPIC)
@@ -173,22 +221,29 @@ def launch_setup(context: LaunchContext) -> list[Any]:
             'use_foxglove': LaunchConfiguration('use_foxglove'),
             'use_reference_motion': LaunchConfiguration('use_reference_motion'),
             'network_interface': LaunchConfiguration('network_interface'),
+            'inference_controller_config_path': LaunchConfiguration(
+                'inference_controller_config_path'),
             'initial_controller': ','.join(
                 group_config.get(
                     'controllers',
                     ['safety_controller', 'forward_joint_command_controller'],
                 )
             ),
+            'inference_config_path': '',
         }.items(),
     )
+
+    joint_commands_trajectory_output_topic = context.perform_substitution(
+        LaunchConfiguration('joint_commands_trajectory_output_topic'))
+    cmd_vel_output_topic = context.perform_substitution(
+        LaunchConfiguration('cmd_vel_output_topic'))
 
     inference_pipeline = GroupAction([
         # Remap output topics from namespace-relative to global.
         SetRemap(src='joint_commands', dst='/joint_commands'),
-        SetRemap(src='joint_commands_trajectory',
-                 dst='/joint_commands_trajectory'),
+        SetRemap(src='joint_commands_trajectory', dst=joint_commands_trajectory_output_topic),
         SetRemap(src='body_commands', dst='/body_commands'),
-        SetRemap(src='cmd_vel', dst='/cmd_vel'),
+        SetRemap(src='cmd_vel', dst=cmd_vel_output_topic),
         IncludeLaunchDescription(
             PythonLaunchDescriptionSource(
                 PathJoinSubstitution([
@@ -201,6 +256,7 @@ def launch_setup(context: LaunchContext) -> list[Any]:
                 'config_path': TextSubstitution(text=config_path),
                 'publish_rate': LaunchConfiguration('publish_rate'),
                 'source_to_topic': source_to_topic_str,
+                'triton_cpu_models': LaunchConfiguration('triton_cpu_models'),
             }.items(),
         ),
     ])

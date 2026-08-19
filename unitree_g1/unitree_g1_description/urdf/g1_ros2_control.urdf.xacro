@@ -35,6 +35,9 @@ SPDX-License-Identifier: Apache-2.0
         <param name="mujoco_model">${mujoco_model_path}</param>
         <param name="headless">${'false' if str(enable_viewer).lower() == 'true' else 'true'}</param>
         <param name="sim_speed_factor">1.0</param>
+        <param name="lockstep">true</param>
+        <param name="lockstep_timestep">0.001</param>
+        <param name="lockstep_steps_per_update">5</param>
         <param name="odom_frame">world</param>
         <!-- Match the real RealSense D435 default RGB stream rate so sim
              and real data-collection pipelines produce comparable bags. -->
@@ -102,9 +105,9 @@ SPDX-License-Identifier: Apache-2.0
          publishes `/realsense_d435_rgb/color/image_raw`. -->
     <sensor name="realsense_d435_rgb">
       <param name="frame_name">realsense_d435_rgb_optical_frame</param>
-      <param name="image_topic">realsense_d435_rgb/color/image_raw</param>
-      <param name="info_topic">realsense_d435_rgb/color/camera_info</param>
-      <param name="depth_topic">realsense_d435_rgb/depth/image_rect_raw</param>
+      <param name="image_topic">/realsense_d435_rgb/color/image_raw</param>
+      <param name="info_topic">/realsense_d435_rgb/color/camera_info</param>
+      <param name="depth_topic">/realsense_d435_rgb/depth/image_rect_raw</param>
     </sensor>
 
     <!-- IMU Sensor -->

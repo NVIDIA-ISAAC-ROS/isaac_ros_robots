@@ -1,7 +1,20 @@
 #!/usr/bin/env python3
 
-# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
+# Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 
 """Unified launch file for Unitree G1 robot - supports both MuJoCo and real hardware."""
 
@@ -10,8 +23,14 @@ import tempfile
 from typing import Any
 
 from ament_index_python.packages import get_package_share_directory, PackageNotFoundError
+from controller_manager_msgs.srv import SwitchController
 from launch import LaunchContext, LaunchDescription
-from launch.actions import DeclareLaunchArgument, OpaqueFunction, RegisterEventHandler, Shutdown
+from launch.actions import (
+    DeclareLaunchArgument,
+    OpaqueFunction,
+    RegisterEventHandler,
+    Shutdown,
+)
 from launch.conditions import IfCondition
 from launch.event_handlers import OnProcessExit
 from launch.substitutions import (
@@ -24,6 +43,14 @@ from launch.substitutions import (
 from launch_ros.actions import Node
 from launch_ros.descriptions import ParameterValue
 from launch_ros.substitutions import FindPackageShare
+from rcl_interfaces.msg import Parameter as RclParameter
+from rcl_interfaces.msg import ParameterValue as RclParameterValue
+from rcl_interfaces.srv import SetParameters
+import rclpy
+from rclpy.context import Context as RclpyContext
+from rclpy.duration import Duration as RclpyDuration
+from rclpy.executors import SingleThreadedExecutor
+from rclpy.node import Node as RclpyNode
 import yaml
 
 
@@ -51,6 +78,24 @@ def _controller_names_by_type(config: dict[str, Any], controller_type: str) -> s
     }
 
 
+def _resolve_inference_controller_config_path(
+    group_config: dict[str, Any],
+    inference_controller_config_override: str,
+) -> str:
+    """Resolve the LEAPP YAML path used by inference_controller."""
+    if inference_controller_config_override:
+        return str(Path(inference_controller_config_override).expanduser().resolve())
+
+    data_package = group_config.get("data_package", "unitree_g1_bringup")
+    if group_config.get("agile_config"):
+        agile_pkg = group_config.get("agile_data_package", data_package)
+        agile_pkg_share = Path(get_package_share_directory(agile_pkg))
+        return str(agile_pkg_share / "data" / group_config["agile_config"])
+
+    data_pkg_share = Path(get_package_share_directory(data_package))
+    return str(data_pkg_share / "data" / group_config["config"])
+
+
 CONTROLLER_GROUPS = _load_controller_groups()
 CONTROLLER_MANAGER_CONFIG = _load_controller_manager_config()
 SAFETY_CONTROLLER_NAMES = _controller_names_by_type(
@@ -67,6 +112,147 @@ def _unique_preserve_order(values: list[str]) -> list[str]:
     return list(dict.fromkeys(values))
 
 
+def _launch_bool(context: LaunchContext, argument_name: str, default_value: bool) -> bool:
+    """Parse a boolean launch argument with a caller-provided default."""
+    value = context.launch_configurations.get(argument_name, "")
+    if not value:
+        return default_value
+
+    normalized = value.lower()
+    if normalized in ("true", "1", "yes", "on"):
+        return True
+    if normalized in ("false", "0", "no", "off"):
+        return False
+    raise ValueError(
+        f"Launch argument '{argument_name}' must be true or false, got '{value}'."
+    )
+
+
+def _auto_start_safety_blend_ratio(context: LaunchContext) -> bool:
+    """Return whether launch should ramp active safety controllers after spawn."""
+    return _launch_bool(
+        context,
+        "auto_start_safety_blend_ratio",
+        default_value=False,
+    )
+
+
+def _startup_safety_blend_controllers(active_controllers: list[str]) -> list[str]:
+    """Return lower-body safety controllers whose blend ratio should be auto-started."""
+    # Split-blend groups keep safety_controller_upper_body independent so arms
+    # can be ramped separately after startup.
+    return [
+        controller
+        for controller in ("safety_controller", "safety_controller_lower_body")
+        if controller in active_controllers
+    ]
+
+
+def _set_controller_double_parameter(
+    node: RclpyNode,
+    executor: SingleThreadedExecutor,
+    controller_name: str,
+    parameter_name: str,
+    value: float,
+    timeout_s: float = 10.0,
+) -> None:
+    """Set a double parameter on a controller through its parameter service."""
+    service_name = f"/{controller_name}/set_parameters"
+    client = node.create_client(SetParameters, service_name)
+    if not client.wait_for_service(timeout_sec=timeout_s):
+        raise RuntimeError(f"Parameter service '{service_name}' is not available.")
+
+    parameter = RclParameter()
+    parameter.name = parameter_name
+    parameter.value = RclParameterValue(
+        type=rclpy.Parameter.Type.DOUBLE.value,
+        double_value=value,
+    )
+
+    request = SetParameters.Request()
+    request.parameters = [parameter]
+    future = client.call_async(request)
+    executor.spin_until_future_complete(future, timeout_sec=timeout_s)
+
+    response = future.result()
+    if response is None:
+        raise RuntimeError(
+            f"Setting '{controller_name}.{parameter_name}' timed out."
+        )
+    for result in response.results:
+        if not result.successful:
+            raise RuntimeError(
+                f"Setting '{controller_name}.{parameter_name}' failed: {result.reason}"
+            )
+
+    node.get_logger().info(
+        f"Set {controller_name}.{parameter_name} to {value:.3f}"
+    )
+
+
+def _switch_controllers(
+    node: RclpyNode,
+    executor: SingleThreadedExecutor,
+    controllers_to_activate: list[str],
+    controllers_to_deactivate: list[str] | None = None,
+    timeout_s: float = 60.0,
+) -> None:
+    """Activate and deactivate controllers through controller_manager."""
+    service_name = "/controller_manager/switch_controller"
+    client = node.create_client(SwitchController, service_name)
+    if not client.wait_for_service(timeout_sec=timeout_s):
+        raise RuntimeError(f"Service '{service_name}' is not available.")
+
+    request = SwitchController.Request()
+    request.activate_controllers = controllers_to_activate
+    request.deactivate_controllers = controllers_to_deactivate or []
+    request.strictness = SwitchController.Request.STRICT
+    request.activate_asap = False
+    request.timeout = RclpyDuration(seconds=timeout_s).to_msg()
+
+    node.get_logger().info(
+        f"Activating controllers after inactive load: {controllers_to_activate}"
+    )
+    future = client.call_async(request)
+    executor.spin_until_future_complete(future, timeout_sec=timeout_s)
+    response = future.result()
+    if response is None:
+        raise RuntimeError("Controller switch timed out.")
+    if not response.ok:
+        raise RuntimeError(
+            "Controller switch failed while activating "
+            f"{controllers_to_activate}."
+        )
+
+
+def _activate_startup_controllers(
+    _context: LaunchContext,
+    active_controllers: list[str],
+    startup_safety_blend_controllers: list[str],
+) -> list[Any]:
+    """Activate pre-loaded startup controllers and optionally ramp safety blend."""
+    rclpy_context = RclpyContext()
+    rclpy.init(context=rclpy_context)
+    node = rclpy.create_node(
+        "unitree_g1_startup_controller_activation",
+        context=rclpy_context,
+    )
+    executor = SingleThreadedExecutor(context=rclpy_context)
+    executor.add_node(node)
+    try:
+        _switch_controllers(node, executor, active_controllers)
+        for controller_name in startup_safety_blend_controllers:
+            _set_controller_double_parameter(
+                node, executor, controller_name, "blend_ratio", 1.0
+            )
+    finally:
+        executor.remove_node(node)
+        executor.shutdown()
+        node.destroy_node()
+        rclpy.shutdown(context=rclpy_context)
+    return []
+
+
 def generate_launch_description() -> LaunchDescription:
     """Generate unified launch description supporting both MuJoCo and real hardware."""
     try:
@@ -80,8 +266,9 @@ def generate_launch_description() -> LaunchDescription:
         DeclareLaunchArgument(
             "hardware_type",
             default_value="mujoco",
-            description="Hardware type: 'mujoco' for MuJoCo, 'real' for physical G1 robot.",
-            choices=["mujoco", "real"],
+            description="Hardware type: 'mujoco' for MuJoCo, 'real' for physical G1 robot,"
+            " 'isaacsim' for Isaac Sim.",
+            choices=["mujoco", "real", "isaacsim"],
         ),
         # Controller group selection
         DeclareLaunchArgument(
@@ -144,6 +331,12 @@ def generate_launch_description() -> LaunchDescription:
             description="[Real hardware only] Enable hand control.",
         ),
         DeclareLaunchArgument(
+            "publish_static_world_tf",
+            default_value="true",
+            description="[Real hardware only] Publish a static identity world->pelvis TF. "
+            "Set false when another node (e.g. teleop's pose_reset_node) owns that edge.",
+        ),
+        DeclareLaunchArgument(
             "ik_reference_pose_topic",
             default_value="",
             description="Internal: topic to remap /ik_controller/reference_pose to.",
@@ -155,11 +348,20 @@ def generate_launch_description() -> LaunchDescription:
             " inference_controller to subscribe to geometry_msgs/msg/TwistStamped.",
         ),
         DeclareLaunchArgument(
-            "inference_config_path",
+            "inference_controller_config_path",
             default_value="",
             description=(
                 "Absolute path to a LEAPP policy YAML for inference_controller. "
                 "Empty string uses controller_groups.yaml for initial_controller_group."
+            ),
+        ),
+        DeclareLaunchArgument(
+            "auto_start_safety_blend_ratio",
+            default_value="",
+            description=(
+                "Set active safety-controller blend_ratio to 1.0 after controllers "
+                "are spawned. Empty defaults to false for every hardware type; set "
+                "blend_ratio to 1.0 after publishing the first /cmd_vel instead."
             ),
         ),
     ]
@@ -186,8 +388,13 @@ def launch_setup(context: LaunchContext) -> list[Any]:
         hw_config = _get_mujoco_config(context, description_pkg_share, bringup_pkg_share)
     elif hardware_type == "real":
         hw_config = _get_real_hardware_config(context, description_pkg_share)
+    elif hardware_type == "isaacsim":
+        hw_config = _get_isaacsim_config(context, description_pkg_share, bringup_pkg_share)
     else:
-        raise ValueError(f"Invalid hardware_type: {hardware_type}. Must be 'mujoco' or 'real'.")
+        raise ValueError(
+            f"Invalid hardware_type: {hardware_type}. "
+            "Must be 'mujoco', 'real', or 'isaacsim'."
+        )
 
     # Build robot description
     robot_description_content = Command(hw_config["xacro_command"])
@@ -197,25 +404,16 @@ def launch_setup(context: LaunchContext) -> list[Any]:
 
     # Common paths
     controller_config_path = str(bringup_pkg_share / "config/controller_manager.yaml")
-    data_package = group_config.get("data_package", "unitree_g1_bringup")
-    data_pkg_share = Path(get_package_share_directory(data_package))
 
-    # Resolve inference controller config: use agile_config if present (for
-    # groups that run AGILE balancing alongside an inference graph), otherwise
-    # use the group's main config.
-    inference_config_override = context.launch_configurations.get(
-        "inference_config_path", "").strip()
-    if group_config.get("agile_config"):
-        agile_pkg = group_config.get("agile_data_package", data_package)
-        agile_pkg_share = Path(get_package_share_directory(agile_pkg))
-        inference_config_path = str(agile_pkg_share / "data" / group_config["agile_config"])
-    elif inference_config_override:
-        inference_config_path = str(Path(inference_config_override).expanduser().resolve())
-    else:
-        inference_config_path = str(data_pkg_share / "data" / group_config["config"])
+    # Resolve inference controller config: explicit override first, otherwise
+    # preserve the group's agile_config/config default behavior.
+    inference_controller_config_override = context.launch_configurations.get(
+        "inference_controller_config_path", "").strip()
+    inference_controller_config_path = _resolve_inference_controller_config_path(
+        group_config, inference_controller_config_override)
 
-    # Split-blend groups override with command_prefix_lower_body / _upper_body;
-    # legacy groups fall back to a single command_prefix for both.
+    # Groups with command_prefix_lower_body / _upper_body get split-blend
+    # control; groups with a single command_prefix use it for both.
     single_prefix = group_config.get("command_prefix")
     has_lower = "command_prefix_lower_body" in group_config
     has_upper = "command_prefix_upper_body" in group_config
@@ -228,7 +426,7 @@ def launch_setup(context: LaunchContext) -> list[Any]:
 
     # Build inference controller parameters from group config.
     inference_ros_params = {
-        "config_path": inference_config_path,
+        "config_path": inference_controller_config_path,
         "decimation": 4,  # TODO(lgulich): do not hardcode decimation
     }
     for key in ("command_suffix", "source_to_topic"):
@@ -247,9 +445,9 @@ def launch_setup(context: LaunchContext) -> list[Any]:
         }
 
     # Build runtime parameter overrides (written to a temp YAML loaded after the base config).
-    # This includes inference_controller params and hardware-specific safety_controller defaults.
-    # MuJoCo: blend_ratio=1.0 (policy fully enabled).
-    # Real hardware: blend_ratio=0.0 (policy disabled).
+    # This includes inference_controller params and safety_controller startup defaults.
+    # Safety controllers start at blend_ratio=0.0; MuJoCo defaults to a launch hook that sets
+    # the target to 1.0 after all controllers are loaded so the controller ramps in.
     initial_controller = context.launch_configurations.get("initial_controller", "")
     startup_controllers = [
         c.strip() for c in initial_controller.split(",") if c.strip()
@@ -275,7 +473,7 @@ def launch_setup(context: LaunchContext) -> list[Any]:
             }
         return params
 
-    safety_blend_ratio = hw_config["blend_ratio_default"]
+    safety_blend_ratio = 0.0
 
     # Split-blend: default upper_body to 0 so legs come up first, then operator
     # ramps arms in via `ros2 param set /safety_controller_upper_body blend_ratio 1`.
@@ -353,7 +551,10 @@ def launch_setup(context: LaunchContext) -> list[Any]:
     # runtime_params_file is loaded AFTER the base config so its values take precedence.
     controller_params = [
         robot_description,
-        {"use_sim_time": hardware_type == "mujoco"},
+        {
+            "use_sim_time": hardware_type in ("mujoco", "isaacsim"),
+            "mujoco.lockstep": hardware_type == "mujoco",
+        },
         controller_config_path,
         runtime_params_file.name,
     ]
@@ -362,7 +563,7 @@ def launch_setup(context: LaunchContext) -> list[Any]:
     if hw_config.get("mujoco_pid_config"):
         controller_params.insert(3, hw_config["mujoco_pid_config"])
 
-    # Build optional remappings — used when an external topic source replaces the defaults.
+    # Build optional remappings used when an external topic source replaces the defaults.
     remappings = []
     ik_reference_pose_topic = context.launch_configurations.get("ik_reference_pose_topic", "")
     if ik_reference_pose_topic:
@@ -391,7 +592,8 @@ def launch_setup(context: LaunchContext) -> list[Any]:
         parameters=[robot_description],
     )
 
-    # Static TF publisher for real hardware (pelvis to world transform)
+    # Static identity world->pelvis TF for real hardware, unless another node
+    # (teleop's pose_reset_node) owns that edge.
     static_tf_publisher = Node(
         package="tf2_ros",
         executable="static_transform_publisher",
@@ -399,7 +601,10 @@ def launch_setup(context: LaunchContext) -> list[Any]:
         arguments=["0", "0", "0", "0", "0", "0", "world", "pelvis"],
         output="screen",
         condition=IfCondition(
-            PythonExpression(["'", LaunchConfiguration("hardware_type"), "' == 'real'"])
+            PythonExpression([
+                "'", LaunchConfiguration("hardware_type"), "' == 'real' and '",
+                LaunchConfiguration("publish_static_world_tf"), "' == 'true'",
+            ])
         ),
     )
 
@@ -476,7 +681,6 @@ def _get_mujoco_config(
     return {
         "controller_manager_package": "mujoco_ros2_control",
         "mujoco_pid_config": mujoco_pid_config_path,
-        "blend_ratio_default": 1.0,  # MuJoCo: safety off by default
         "xacro_command": [
             PathJoinSubstitution([FindExecutable(name="xacro")]),
             " ", urdf_xacro_path,
@@ -499,7 +703,6 @@ def _get_real_hardware_config(
 
     return {
         "controller_manager_package": "controller_manager",
-        "blend_ratio_default": 0.0,  # Real hardware: safety on by default
         "xacro_command": [
             PathJoinSubstitution([FindExecutable(name="xacro")]),
             " ", urdf_xacro_path,
@@ -510,13 +713,37 @@ def _get_real_hardware_config(
     }
 
 
+def _get_isaacsim_config(
+    context: LaunchContext,
+    description_pkg_share: Path,
+    bringup_pkg_share: Path,
+) -> dict[str, Any]:
+    """Get configuration for Isaac Sim topic-based interface."""
+    del context, bringup_pkg_share  # unused; kept for parity with the mujoco helper
+    urdf_xacro_path = str(description_pkg_share / "urdf/g1_isaacsim.urdf.xacro")
+
+    # Per-joint actuator dynamics (PD gains, effort envelope) live in the
+    # Isaac Sim USD as NewtonActuator prims, not in ros2_control. The Isaac
+    # Sim topics are fixed here; remap them at the ROS level if needed.
+    return {
+        "controller_manager_package": "controller_manager",
+        "xacro_command": [
+            PathJoinSubstitution([FindExecutable(name="xacro")]),
+            " ", urdf_xacro_path,
+            " ", "joint_states_topic:=/isaac_sim_joint_states",
+            " ", "joint_commands_topic:=/isaac_sim_joint_commands",
+            " ", "imu_topic:=/isaac_sim_imu",
+        ],
+    }
+
+
 def spawn_controllers_sequentially(context: LaunchContext) -> list[Any]:
     """
     Spawn controllers sequentially with OnProcessExit chaining.
 
-    Spawn order: base broadcasters + group controllers (active) → inactive controllers.
-    When safety_controller is active, joint_command_broadcaster is split out and
-    spawned between those steps so safety_controller can export its reference interfaces first.
+    Spawn order: all startup controllers loaded inactive, then runtime group activated.
+    This keeps safety_controller from running until freeze_controller already exists
+    and all group controllers are loaded/configured.
     Controllers requested via initial_controller override the inactive list.
     When initial_controller is empty, falls back to the controller group's default list.
     """
@@ -528,16 +755,15 @@ def spawn_controllers_sequentially(context: LaunchContext) -> list[Any]:
         group = context.launch_configurations.get("initial_controller_group", "agile_velocity")
         group_controllers = CONTROLLER_GROUPS[group].get("controllers", [])
 
-    # Always spawn base broadcasters first in the active batch, then group-specific controllers.
+    # Always activate base broadcasters first, then group-specific controllers.
     active_controllers = [
         "joint_state_broadcaster", "imu_sensor_broadcaster",
         "joint_command_broadcaster",
     ] + group_controllers
-
-    # Spawn after whichever safety_controller variant is active — broadcaster
-    # reads its reference interfaces so ordering matters.
-    spawn_jcb_separately = any(
-        c in active_controllers for c in SAFETY_CONTROLLER_NAMES
+    startup_safety_blend_controllers = (
+        _startup_safety_blend_controllers(active_controllers)
+        if _auto_start_safety_blend_ratio(context)
+        else []
     )
 
     # Load freeze/disable controllers as inactive (unless explicitly requested).
@@ -545,66 +771,40 @@ def spawn_controllers_sequentially(context: LaunchContext) -> list[Any]:
         c for c in ["freeze_controller", "disable_controller"]
         if c not in active_controllers
     ]
+    load_controllers = _unique_preserve_order(active_controllers + inactive_controllers)
 
-    # Remove joint_command_broadcaster from the main batch when it needs
-    # to be spawned separately (after safety_controller).
-    batch_controllers = [
-        c for c in active_controllers
-        if not (spawn_jcb_separately and c == "joint_command_broadcaster")
-    ]
-
-    # Spawn active and inactive controllers as batched spawner processes.
-    # Using fewer spawner processes avoids DDS discovery issues that
-    # occur when many short-lived DDS participants are created sequentially.
-    spawners = []
-    if batch_controllers:
-        spawners.append(Node(
-            package="controller_manager",
-            executable="spawner",
-            name="spawner_active",
-            arguments=[
-                *batch_controllers,
-                "--controller-manager-timeout", "60",
-                "--service-call-timeout", "60",
-            ],
-            output="screen",
-        ))
-    # Chain joint_command_broadcaster after the active batch so that safety_controller
-    # reference interfaces are registered before broadcaster activation.
-    if spawn_jcb_separately:
-        spawners.append(Node(
-            package="controller_manager",
-            executable="spawner",
-            name="spawner_joint_command_broadcaster",
-            arguments=[
-                "joint_command_broadcaster",
-                "--controller-manager-timeout", "60",
-                "--service-call-timeout", "60",
-            ],
-            output="screen",
-        ))
-    if inactive_controllers:
-        spawners.append(Node(
-            package="controller_manager",
-            executable="spawner",
-            name="spawner_inactive",
-            arguments=[
-                *inactive_controllers,
-                "--inactive",
-                "--controller-manager-timeout", "60",
-                "--service-call-timeout", "60",
-            ],
-            output="screen",
-        ))
-
-    if not spawners:
+    # Load/configure all controllers first, then activate the runtime group
+    # explicitly. This avoids remote-exec startup races where safety_controller
+    # runs before the emergency controller has been loaded.
+    if not load_controllers:
         return []
 
-    # Chain spawners via OnProcessExit: active → optional joint_command_broadcaster → inactive.
-    actions = [spawners[0]]
-    for i in range(1, len(spawners)):
-        actions.append(RegisterEventHandler(
-            OnProcessExit(target_action=spawners[i - 1], on_exit=[spawners[i]])
-        ))
+    # Using fewer spawner processes avoids DDS discovery issues that
+    # occur when many short-lived DDS participants are created sequentially.
+    load_inactive_spawner = Node(
+        package="controller_manager",
+        executable="spawner",
+        name="spawner_inactive",
+        arguments=[
+            *load_controllers,
+            "--inactive",
+            "--controller-manager-timeout", "60",
+            "--service-call-timeout", "60",
+        ],
+        output="screen",
+    )
 
-    return actions
+    return [
+        load_inactive_spawner,
+        RegisterEventHandler(
+            OnProcessExit(
+                target_action=load_inactive_spawner,
+                on_exit=[
+                    OpaqueFunction(
+                        function=_activate_startup_controllers,
+                        args=[active_controllers, startup_safety_blend_controllers],
+                    )
+                ],
+            )
+        ),
+    ]

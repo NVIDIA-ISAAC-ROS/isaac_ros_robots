@@ -7,5 +7,6 @@ project(isaac_ros_robots_tools)
 find_package(ament_cmake REQUIRED)
 
 install(DIRECTORY scripts/ DESTINATION share/${PROJECT_NAME}/scripts)
+install(PROGRAMS scripts/setup_network.py DESTINATION lib/${PROJECT_NAME})
 
 ament_package()
