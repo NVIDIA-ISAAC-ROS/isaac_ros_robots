@@ -31,7 +31,7 @@ import time
 import unittest
 
 from ament_index_python.packages import get_package_share_directory
-from geometry_msgs.msg import Pose, PoseArray
+from geometry_msgs.msg import Pose
 from geometry_msgs.msg import Twist
 import launch
 from launch.actions import IncludeLaunchDescription
@@ -55,6 +55,7 @@ from rclpy.duration import Duration
 import rclpy.parameter
 from rclpy.time import Time
 from scipy.spatial.transform import Rotation, Slerp
+from teleop_ros2_interfaces.msg import NamedPoseArray
 import tf2_ros
 
 LEFT_EE_FRAME = "left_hand_palm_link"
@@ -324,7 +325,7 @@ class TestAgileVelocityWithIK(unittest.TestCase):
             lambda: cls.cmd_vel_pub.publish(Twist()),
         )
         cls._ref_pub = cls.node.create_publisher(
-            PoseArray, "/ik_controller/reference_pose", 10
+            NamedPoseArray, "/ik_controller/reference_pose", 10
         )
         cls._ref_timer = None
         cls._ref_start_time = None
@@ -350,11 +351,15 @@ class TestAgileVelocityWithIK(unittest.TestCase):
         elapsed = (cls.node.get_clock().now() - cls._ref_start_time).nanoseconds / 1e9
         alpha = elapsed / IK_TARGET_RAMP_DURATION_S
 
-        msg = PoseArray()
+        msg = NamedPoseArray()
         msg.header.stamp = cls.node.get_clock().now().to_msg()
         msg.header.frame_id = REFERENCE_FRAME
-        msg.poses.append(_interpolate_pose(cls._left_start_pose, _LEFT_POSE, alpha))
-        msg.poses.append(_interpolate_pose(cls._right_start_pose, _RIGHT_POSE, alpha))
+        msg.name = ["left", "right"]
+        msg.pose = [
+            _interpolate_pose(cls._left_start_pose, _LEFT_POSE, alpha),
+            _interpolate_pose(cls._right_start_pose, _RIGHT_POSE, alpha),
+        ]
+        msg.is_valid = [True, True]
         cls._ref_pub.publish(msg)
 
     @classmethod

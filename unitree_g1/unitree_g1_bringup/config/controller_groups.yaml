@@ -31,6 +31,14 @@ agile_velocity_with_ik:
     - ik_controller
     - fingers_forward_joint_command_controller
 
+# Direct parameter-driven impedance control for the full G1, including both
+# Dex3 hands. Launch with use_joint_command_broadcaster:=false because this
+# controller claims hardware interfaces directly rather than safety_controller
+# chain interfaces.
+joint_parameter:
+  controllers:
+    - joint_parameter_controller
+
 gr00t_n17_apple_to_plate:
   data_package: isaac_ros_gr00t_unitree_g1_install
   config: gr00t_n17_apple_to_plate.yaml

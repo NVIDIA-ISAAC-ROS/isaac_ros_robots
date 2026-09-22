@@ -13,6 +13,9 @@ import time
 
 # pylint: disable=inconsistent-quotes
 
+MULTICAST_ROUTE = '239.0.0.0/8'
+MULTICAST_PROBE_ADDRESS = '239.255.0.1'
+
 # Robot configurations dictionary.
 ROBOT_CONFIGURATIONS = {
     'Unitree G1': {
@@ -244,8 +247,56 @@ def backup_config(config: dict[str, str], interface: str) -> str:
     return backup_file
 
 
+def configure_firewall(config: dict[str, str], interface: str) -> None:
+    """Allow robot-subnet UDP traffic when UFW is available."""
+    if not shutil.which('ufw'):
+        print_warning('ufw is not installed; skipping firewall configuration')
+        return
+
+    subnet = config['ip_address'].rsplit('.', 1)[0] + '.0/24'
+    result = run_command(
+        ['sudo', 'ufw', 'allow', 'in', 'on', interface, 'proto', 'udp', 'from', subnet],
+        check=False,
+    )
+    if result.returncode == 0:
+        print_info(f'Allowed incoming UDP from {subnet} on {interface} through firewall')
+    else:
+        print_warning(f'Failed to update the firewall: {result.stderr.strip()}')
+
+
+def verify_configuration(config: dict[str, str], interface: str) -> None:
+    """Verify the address and DDS multicast route."""
+    address = run_command(['sudo', 'ip', 'addr', 'show', interface], check=False)
+    if config['ip_address'] not in address.stdout:
+        print_error(f'IP address {config["ip_address"]} is not configured on {interface}.')
+        sys.exit(1)
+
+    route = run_command(['ip', 'route', 'get', MULTICAST_PROBE_ADDRESS], check=False)
+    route_tokens = route.stdout.split()
+    route_interface = None
+    route_source = None
+    if 'dev' in route_tokens and route_tokens.index('dev') + 1 < len(route_tokens):
+        route_interface = route_tokens[route_tokens.index('dev') + 1]
+    if 'src' in route_tokens and route_tokens.index('src') + 1 < len(route_tokens):
+        route_source = route_tokens[route_tokens.index('src') + 1]
+    if (
+        route.returncode != 0
+        or route_interface != interface
+        or route_source != config['ip_address']
+    ):
+        print_error(
+            f'Multicast route for {MULTICAST_PROBE_ADDRESS} does not use '
+            f'{interface} with source {config["ip_address"]}: '
+            f'{route.stdout.strip() or route.stderr.strip()}'
+        )
+        sys.exit(1)
+
+    print_info('Network configuration successful!')
+    print_info(f'DDS multicast traffic uses {interface}')
+
+
 def configure_interface(config: dict[str, str], interface: str) -> None:
-    """Configure the network interface."""
+    """Temporarily configure the network interface."""
     print_info(
         f'Configuring network interface {interface} for connection: {config["connection_name"]}'
     )
@@ -254,54 +305,32 @@ def configure_interface(config: dict[str, str], interface: str) -> None:
     if config['gateway']:
         print_info(f'Setting gateway: {config["gateway"]}')
 
-    # Clear any existing IP addresses on the interface.
-    run_command(['sudo', 'ip', 'addr', 'flush', 'dev', interface], check=False)
-
-    # Bring up the interface first.
-    run_command(['sudo', 'ip', 'link', 'set', interface, 'up'])
-
-    # Wait a moment for the interface to be ready.
-    time.sleep(1)
-
     # Calculate CIDR notation from subnet mask.
     cidr = sum(bin(int(x)).count('1') for x in config['subnet_mask'].split('.'))
 
-    # Configure the IP address and subnet mask.
-    run_command(['sudo', 'ip', 'addr', 'add', f'{config["ip_address"]}/{cidr}', 'dev', interface])
-
-    # Configure gateway if specified.
+    run_command(['sudo', 'ip', 'addr', 'flush', 'dev', interface], check=False)
+    run_command(['sudo', 'ip', 'link', 'set', interface, 'up'])
+    time.sleep(1)
+    run_command(
+        ['sudo', 'ip', 'addr', 'add', f'{config["ip_address"]}/{cidr}', 'dev', interface]
+    )
     if config['gateway']:
         run_command(
-            ['sudo', 'ip', 'route', 'add', 'default', 'via', config['gateway'], 'dev', interface]
+            [
+                'sudo', 'ip', 'route', 'replace', 'default',
+                'via', config['gateway'], 'dev', interface,
+            ]
         )
+    run_command(
+        [
+            'sudo', 'ip', 'route', 'replace', MULTICAST_ROUTE,
+            'dev', interface, 'src', config['ip_address'],
+        ]
+    )
+    print_info(f'Added temporary multicast route {MULTICAST_ROUTE} via {interface}')
 
-    # Add multicast route so DDS/CycloneDDS traffic uses this interface instead of defaulting
-    # to the primary network interface (e.g. WiFi). Without this, multicast packets from the
-    # robot arrive at the Ethernet level but are never delivered to UDP sockets.
-    run_command(['sudo', 'ip', 'route', 'add', '239.0.0.0/8', 'dev', interface], check=False)
-    print_info(f'Added multicast route 239.0.0.0/8 via {interface}')
-
-    # Allow DDS traffic through the firewall. UFW defaults to INPUT DROP, which silently blocks
-    # incoming UDP on DDS discovery ports (7400-7420) from the robot subnet.
-    subnet = config['ip_address'].rsplit('.', 1)[0] + '.0/24'
-    run_command(['sudo', 'ufw', 'allow', 'in', 'on', interface, 'proto', 'udp',
-                 'from', subnet], check=False)
-    print_info(f'Allowed incoming UDP from {subnet} on {interface} through firewall')
-
-    # Verify the configuration.
-    result = run_command(['sudo', 'ip', 'addr', 'show', interface], check=False)
-    if config['ip_address'] in result.stdout:
-        print_info('Network configuration successful!')
-        print_info(
-            f"Connection '{config['connection_name']}' is now configured on interface {interface}:"
-        )
-        print_info(f'  IP Address: {config["ip_address"]}')
-        print_info(f'  Subnet Mask: {config["subnet_mask"]}')
-        if config['gateway']:
-            print_info(f'  Gateway: {config["gateway"]}')
-    else:
-        print_error('Failed to configure network interface.')
-        sys.exit(1)
+    configure_firewall(config, interface)
+    verify_configuration(config, interface)
 
 
 def ping_robot(robot_ip: str) -> bool:

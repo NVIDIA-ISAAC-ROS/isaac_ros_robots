@@ -1,0 +1,37 @@
+<!--
+SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+SPDX-License-Identifier: Apache-2.0
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+-->
+<library path="unitree_hg_ros2_control">
+  <class name="unitree_hg_ros2_control/UnitreeHgSystemInterface"
+         type="unitree_hg_ros2_control::UnitreeHgSystemInterface"
+         base_class_type="hardware_interface::SystemInterface">
+    <description>
+      Generic ros2_control hardware interface for Unitree unitree_hg humanoid
+      bodies (G1, H2). Communicates via the Unitree SDK over DDS using the
+      unitree_hg LowCmd/LowState channels. Joint-to-SDK-motor mapping is
+      selected via the robot_variant hardware parameter (g1 or h2).
+    </description>
+  </class>
+  <class name="unitree_hg_ros2_control/UnitreeDex3SystemInterface"
+         type="unitree_hg_ros2_control::UnitreeDex3SystemInterface"
+         base_class_type="hardware_interface::SystemInterface">
+    <description>
+      ros2_control hardware interface for the Unitree Dex3 three-finger hands.
+      Communicates via the Unitree SDK over DDS using the unitree_hg
+      HandCmd/HandState channels (rt/dex3/{left,right}/{cmd,state}).
+    </description>
+  </class>
+</library>
