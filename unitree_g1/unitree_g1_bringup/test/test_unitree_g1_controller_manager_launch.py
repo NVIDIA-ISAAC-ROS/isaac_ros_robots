@@ -52,6 +52,18 @@ def _dict_keys(node):
     }
 
 
+def _dict_string_value(node, key_name):
+    if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute):
+        if node.func.attr == "items":
+            node = node.func.value
+    if not isinstance(node, ast.Dict):
+        return None
+    for key, value in zip(node.keys, node.values):
+        if isinstance(key, ast.Constant) and key.value == key_name:
+            return value.value if isinstance(value, ast.Constant) else None
+    return None
+
+
 def _declared_launch_arguments(tree):
     names = set()
     for call in [node for node in ast.walk(tree) if isinstance(node, ast.Call)]:
@@ -63,6 +75,27 @@ def _declared_launch_arguments(tree):
         if isinstance(name, ast.Constant) and isinstance(name.value, str):
             names.add(name.value)
     return names
+
+
+def _launch_argument_default(tree, argument_name):
+    for call in [node for node in ast.walk(tree) if isinstance(node, ast.Call)]:
+        if getattr(call.func, "id", "") != "DeclareLaunchArgument":
+            continue
+        if not call.args:
+            continue
+        name = call.args[0]
+        if not isinstance(name, ast.Constant) or name.value != argument_name:
+            continue
+        return next(
+            (
+                keyword.value.value
+                for keyword in call.keywords
+                if keyword.arg == "default_value"
+                and isinstance(keyword.value, ast.Constant)
+            ),
+            None,
+        )
+    return None
 
 
 def test_inference_graph_forwards_inference_controller_config_path_to_controller_manager():
@@ -107,6 +140,131 @@ def test_inference_graph_declares_and_forwards_triton_cpu_models():
         return
 
     raise AssertionError("inference_graph.launch.py include not found")
+
+
+def test_controller_manager_exposes_configurable_spawner_timeout():
+    launch_file = BRINGUP_ROOT / "launch" / "unitree_g1_controller_manager.launch.py"
+    tree = ast.parse(launch_file.read_text())
+
+    assert "controller_spawner_timeout" in _declared_launch_arguments(tree)
+    assert _launch_argument_default(tree, "controller_spawner_timeout") == "60"
+
+
+def test_spawner_parameter_files_exclude_hardware_pid_yaml():
+    spawner_parameter_files = _load_launch_function(
+        "unitree_g1_controller_manager.launch.py",
+        "_spawner_parameter_files",
+    )
+    controller_params = [
+        {"robot_description": "<robot/>"},
+        {"use_sim_time": True},
+        "/tmp/controller_manager.yaml",
+        "/tmp/mujoco_pid.yaml",
+        "/tmp/runtime_params.yaml",
+    ]
+
+    assert spawner_parameter_files(
+        controller_params,
+        hardware_parameter_files=("/tmp/mujoco_pid.yaml",),
+    ) == [
+        "/tmp/controller_manager.yaml",
+        "/tmp/runtime_params.yaml",
+    ]
+
+
+def test_spawner_parameter_files_keep_controller_yaml_when_pid_absent():
+    spawner_parameter_files = _load_launch_function(
+        "unitree_g1_controller_manager.launch.py",
+        "_spawner_parameter_files",
+    )
+    controller_params = [
+        {"robot_description": "<robot/>"},
+        {"use_sim_time": False},
+        "/tmp/controller_manager.yaml",
+        "/tmp/runtime_params.yaml",
+    ]
+
+    assert spawner_parameter_files(controller_params) == [
+        "/tmp/controller_manager.yaml",
+        "/tmp/runtime_params.yaml",
+    ]
+
+
+def test_spawner_loads_controller_parameter_files_via_param_file():
+    launch_file = BRINGUP_ROOT / "launch" / "unitree_g1_controller_manager.launch.py"
+    tree = ast.parse(launch_file.read_text())
+    spawn = next(
+        node
+        for node in tree.body
+        if isinstance(node, ast.FunctionDef)
+        and node.name == "spawn_controllers_sequentially"
+    )
+
+    assert _contains_string(spawn, "--param-file")
+    assert _contains_string(spawn, "_controller_parameter_files")
+
+
+def test_controller_loading_places_inference_last():
+    order_controllers = _load_launch_function(
+        "unitree_g1_controller_manager.launch.py",
+        "_inference_controller_last",
+    )
+
+    assert order_controllers(
+        [
+            "safety_controller_lower_body",
+            "inference_controller",
+            "upper_body_forward_joint_command_controller",
+            "freeze_controller",
+        ]
+    ) == [
+        "safety_controller_lower_body",
+        "upper_body_forward_joint_command_controller",
+        "freeze_controller",
+        "inference_controller",
+    ]
+
+
+def test_topic_input_sources_match_source_to_topic_keys():
+    topic_input_sources = _load_launch_function(
+        "unitree_g1_controller_manager.launch.py",
+        "_topic_input_sources",
+    )
+
+    assert topic_input_sources(
+        {
+            "source_to_topic": {
+                "command/body/velocity": "/cmd_vel",
+                "state/camera/image": "/camera/image",
+            }
+        }
+    ) == ["command/body/velocity", "state/camera/image"]
+
+
+def test_gr00t_observation_replay_allows_slow_controller_configuration():
+    launch_file = (
+        BRINGUP_ROOT.parents[2]
+        / "isaac_ros_physical_ai"
+        / "unitree_g1_gr00t_tests"
+        / "test"
+        / "test_dataset_observation_replay_pipeline.launch.py"
+    )
+    tree = ast.parse(launch_file.read_text())
+
+    for call in [node for node in ast.walk(tree) if isinstance(node, ast.Call)]:
+        if not getattr(call.func, "id", "") == "IncludeLaunchDescription":
+            continue
+        if not _contains_string(call, "unitree_g1_controller_manager.launch.py"):
+            continue
+        launch_arguments = next(
+            keyword.value
+            for keyword in call.keywords
+            if keyword.arg == "launch_arguments"
+        )
+        assert _dict_string_value(launch_arguments, "controller_spawner_timeout") == "300"
+        return
+
+    raise AssertionError("unitree_g1_controller_manager.launch.py include not found")
 
 
 def test_inference_controller_config_path_override_takes_precedence_over_agile_config(

@@ -46,8 +46,8 @@ import yaml
 
 def _load_controller_groups() -> dict[str, Any]:
     """Load controller group configurations from controller_groups.yaml."""
-    bringup_share = Path(get_package_share_directory("unitree_g1_bringup"))
-    return yaml.safe_load((bringup_share / "config/controller_groups.yaml").read_text())
+    bringup_share = Path(get_package_share_directory('unitree_g1_bringup'))
+    return yaml.safe_load((bringup_share / 'config/controller_groups.yaml').read_text())
 
 
 CONTROLLER_GROUPS = _load_controller_groups()
@@ -61,18 +61,18 @@ def _resolve_inference_graph_config_path(
     if inference_graph_config_override:
         return str(Path(inference_graph_config_override).expanduser().resolve())
 
-    data_package = group_config.get("data_package", "unitree_g1_bringup")
+    data_package = group_config.get('data_package', 'unitree_g1_bringup')
     data_pkg_share = Path(get_package_share_directory(data_package))
-    return str(data_pkg_share / "data" / group_config["config"])
+    return str(data_pkg_share / 'data' / group_config['config'])
 
 
 # Standard source-to-topic mappings for the inference graph.
 # These map hardware state kinds to the ROS topics published by ros2_control broadcasters.
 INPUT_KIND_TO_TOPIC = {
-    "state/joint/position": "/joint_states",
-    "state/joint/velocity": "/joint_states",
-    "state/body/rotation": "/imu_sensor_broadcaster/imu",
-    "state/body/angular_velocity": "/imu_sensor_broadcaster/imu",
+    'state/joint/position': '/joint_states',
+    'state/joint/velocity': '/joint_states',
+    'state/body/rotation': '/imu_sensor_broadcaster/imu',
+    'state/body/angular_velocity': '/imu_sensor_broadcaster/imu',
 }
 
 
@@ -89,10 +89,10 @@ def generate_launch_description() -> LaunchDescription:
         ),
         # Common arguments
         DeclareLaunchArgument(
-            "initial_controller_group",
-            default_value="agile_velocity",
-            description="Controller group from controller_groups.yaml. Options: "
-            + ", ".join(CONTROLLER_GROUPS.keys()),
+            'initial_controller_group',
+            default_value='agile_velocity',
+            description='Controller group from controller_groups.yaml. Options: '
+            + ', '.join(CONTROLLER_GROUPS.keys()),
         ),
         DeclareLaunchArgument(
             'enable_viewer',
@@ -176,19 +176,19 @@ def launch_setup(context: LaunchContext) -> list[Any]:
     description_pkg_share = Path(get_package_share_directory('unitree_g1_description'))
 
     # Resolve controller group configuration.
-    group = context.launch_configurations.get("initial_controller_group", "agile_velocity")
+    group = context.launch_configurations.get('initial_controller_group', 'agile_velocity')
     group_config = CONTROLLER_GROUPS[group]
 
     inference_graph_config_override = context.launch_configurations.get(
-        "inference_graph_config_path", "").strip()
+        'inference_graph_config_path', '').strip()
     config_path = _resolve_inference_graph_config_path(
         group_config, inference_graph_config_override)
 
     # Build source_to_topic: standard hardware mappings + policy-specific mappings.
     source_to_topic = dict(INPUT_KIND_TO_TOPIC)
-    if group_config.get("source_to_topic"):
-        source_to_topic.update(group_config["source_to_topic"])
-    source_to_topic_str = ",".join(f"{k}:{v}" for k, v in source_to_topic.items())
+    if group_config.get('source_to_topic'):
+        source_to_topic.update(group_config['source_to_topic'])
+    source_to_topic_str = ','.join(f'{k}:{v}' for k, v in source_to_topic.items())
 
     # Robot description for command visualization (ghost robot).
     urdf_xacro_path = str(description_pkg_share / 'urdf' / 'g1_with_ros2_control_full.urdf.xacro')

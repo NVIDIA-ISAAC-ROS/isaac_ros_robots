@@ -17,21 +17,30 @@ See the License for the specific language governing permissions and
 limitations under the License.
 -->
 
-<?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
 <package format="3">
-  <name>unitree_g1_description</name>
+  <name>unitree_hg_ros2_control</name>
   <version>5.0.0</version>
-  <description>URDF and MJCF description files for Unitree G1 robot</description>
+  <description>Generic ROS 2 control hardware interfaces for Unitree unitree_hg humanoid robots (G1, H2) and Dex3 hands, using the Unitree SDK over DDS.</description>
   <maintainer email="isaac-ros-maintainers@nvidia.com">Isaac ROS Maintainers</maintainer>
   <license>Apache-2.0</license>
 
   <buildtool_depend>ament_cmake</buildtool_depend>
 
-  <depend>xacro</depend>
-  <depend>urdf</depend>
+  <depend>hardware_interface</depend>
+  <depend>pluginlib</depend>
+  <depend>rclcpp</depend>
+  <depend>rclcpp_lifecycle</depend>
+  <depend>diagnostic_msgs</depend>
+  <depend>realtime_tools</depend>
+
+  <test_depend>ament_lint_auto</test_depend>
+  <test_depend>ament_lint_common</test_depend>
+  <test_depend>ament_cmake_gtest</test_depend>
+  <test_depend>ament_cmake_pytest</test_depend>
+  <test_depend>python3-pytest</test_depend>
 
   <export>
     <build_type>ament_cmake</build_type>
+    <hardware_interface plugin="${prefix}/unitree_hg_ros2_control_hardware.xml"/>
   </export>
 </package>
-

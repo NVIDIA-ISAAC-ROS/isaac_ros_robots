@@ -1,0 +1,16 @@
+diff --git a/src/core/ddsi/src/ddsi_typelib.c b/src/core/ddsi/src/ddsi_typelib.c
+index 8a495359..1c7bcd11 100644
+--- a/src/core/ddsi/src/ddsi_typelib.c
++++ b/src/core/ddsi/src/ddsi_typelib.c
+@@ -1058 +1058,2 @@ void ddsi_type_unref_locked (struct ddsi_domaingv *gv, struct ddsi_type *type)
+-  assert (type);
++  if (!type)
++    return;
+diff --git a/src/core/ddsi/src/ddsi_typewrap.c b/src/core/ddsi/src/ddsi_typewrap.c
+index 37aa0037..57f01886 100644
+--- a/src/core/ddsi/src/ddsi_typewrap.c
++++ b/src/core/ddsi/src/ddsi_typewrap.c
+@@ -842,0 +843,3 @@ static dds_return_t xt_validate_impl (struct ddsi_domaingv *gv, const struct xt_
++  if (t == NULL)
++    return DDS_RETCODE_BAD_PARAMETER;
++
