@@ -61,6 +61,7 @@ import tf2_ros
 LEFT_EE_FRAME = "left_hand_palm_link"
 RIGHT_EE_FRAME = "right_hand_palm_link"
 REFERENCE_FRAME = "pelvis"
+POSE_TOPIC = "/test/g1/ee_poses"
 MAX_POSITION_ERROR_M = 0.1
 MAX_ORIENTATION_ERROR_DEG = 15.0
 IK_TRACKING_DURATION_S = 8.0
@@ -282,6 +283,7 @@ def generate_test_description():
         PythonLaunchDescriptionSource(str(main_launch_file)),
         launch_arguments={
             "initial_controller_group": "agile_velocity_with_ik",
+            "ik_reference_pose_topic": POSE_TOPIC,
             "auto_start_safety_blend_ratio": "false",
             "enable_viewer": str(has_display()).lower(),
             "use_foxglove": "false",
@@ -325,7 +327,7 @@ class TestAgileVelocityWithIK(unittest.TestCase):
             lambda: cls.cmd_vel_pub.publish(Twist()),
         )
         cls._ref_pub = cls.node.create_publisher(
-            NamedPoseArray, "/ik_controller/reference_pose", 10
+            NamedPoseArray, POSE_TOPIC, 10
         )
         cls._ref_timer = None
         cls._ref_start_time = None

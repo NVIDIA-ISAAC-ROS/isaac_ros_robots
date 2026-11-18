@@ -773,8 +773,10 @@ ik_controller:
     # Arms-only (14 DOF): excludes all waist joints.  waist_roll and waist_pitch
     # are claimed by inference_controller in the agile_velocity_with_ik group.
     # waist_yaw is excluded so the IK controller produces zero torque on it.
-    kp: 20.0
-    kd: 1.0
+    kp:
+      ".*": 20.0
+    kd:
+      ".*": 1.0
     max_joint_velocity: 1.2
     joints:
       - left_shoulder_pitch_joint

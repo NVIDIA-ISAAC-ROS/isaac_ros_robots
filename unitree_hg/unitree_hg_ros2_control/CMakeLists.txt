@@ -24,34 +24,19 @@ if(NOT TARGET unitree_sdk2)
   include(FetchContent)
   find_package(Threads REQUIRED)
 
-  function(_unitree_hg_add_cyclonedds)
-    # Keep private dependency options local to this function. Normal variables
-    # take precedence over cache values without overwriting caller choices.
-    set(BUILD_TESTING OFF)
-    set(BUILD_IDLC OFF)
-    set(BUILD_DDSPERF OFF)
-    set(BUILD_EXAMPLES OFF)
-    set(ENABLE_SECURITY OFF)
-    fetchcontent_declare(cyclonedds
-      GIT_REPOSITORY https://github.com/eclipse-cyclonedds/cyclonedds.git
-      GIT_TAG ${CYCLONEDDS_REVISION}
-      PATCH_COMMAND git apply --unidiff-zero --whitespace=nowarn
-        "${CMAKE_CURRENT_SOURCE_DIR}/cmake/patches/cyclonedds-0.10.2-typeobject-null-safety.patch")
-    fetchcontent_getproperties(cyclonedds)
-    if(NOT cyclonedds_POPULATED)
-      fetchcontent_populate(cyclonedds)
-    endif()
-    if(NOT TARGET ddsc)
-      add_subdirectory(
-        "${cyclonedds_SOURCE_DIR}" "${cyclonedds_BINARY_DIR}" EXCLUDE_FROM_ALL)
-    endif()
-  endfunction()
-  _unitree_hg_add_cyclonedds()
-
-  # Cyclone DDS is private to this package. Install its runtime library without
-  # exporting the dependency's headers or CMake package metadata.
-  install(TARGETS ddsc
-    ARCHIVE DESTINATION lib LIBRARY DESTINATION lib RUNTIME DESTINATION bin)
+  set(_unitree_hg_build_testing "${BUILD_TESTING}")
+  set(BUILD_TESTING OFF)
+  set(BUILD_IDLC OFF CACHE BOOL "" FORCE)
+  set(BUILD_DDSPERF OFF CACHE BOOL "" FORCE)
+  set(BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
+  set(ENABLE_SECURITY OFF CACHE BOOL "" FORCE)
+  fetchcontent_declare(cyclonedds
+    GIT_REPOSITORY https://github.com/eclipse-cyclonedds/cyclonedds.git
+    GIT_TAG ${CYCLONEDDS_REVISION}
+    PATCH_COMMAND git apply --unidiff-zero --whitespace=nowarn
+      "${CMAKE_CURRENT_SOURCE_DIR}/cmake/patches/cyclonedds-0.10.2-typeobject-null-safety.patch")
+  fetchcontent_makeavailable(cyclonedds)
+  set(BUILD_TESTING "${_unitree_hg_build_testing}")
 
   message(STATUS "Fetching unitree_sdk2 ${UNITREE_SDK2_REVISION} from GitHub")
   fetchcontent_declare(unitree_sdk2
@@ -90,6 +75,17 @@ if(NOT TARGET unitree_sdk2)
     DESTINATION lib)
 endif()
 
+# NVTX ranges for the SDK read/write boundary (isaac_common/tracing/nvtx_scope.hpp).
+# Header-only, and dormant at runtime unless a profiler is attached.
+find_package(isaac_common REQUIRED)
+include_directories(${isaac_common_INCLUDE_DIRS})
+option(USE_NVTX "Enable NVTX markers for improved profiling (if available)" ON)
+if(USE_NVTX)
+  find_package(CUDAToolkit REQUIRED)
+  add_definitions(-DUSE_NVTX)
+  include_directories(${CUDAToolkit_INCLUDE_DIRS})
+endif()
+
 add_library(${PROJECT_NAME} SHARED)
 target_sources(${PROJECT_NAME} PRIVATE src/version.cpp)
 target_include_directories(${PROJECT_NAME} PUBLIC
@@ -98,7 +94,8 @@ target_include_directories(${PROJECT_NAME} PUBLIC
 target_link_libraries(${PROJECT_NAME} unitree_sdk2)
 set_target_properties(${PROJECT_NAME} PROPERTIES INSTALL_RPATH "$ORIGIN")
 ament_target_dependencies(${PROJECT_NAME}
-  hardware_interface pluginlib rclcpp rclcpp_lifecycle diagnostic_msgs realtime_tools)
+  hardware_interface pluginlib rclcpp rclcpp_lifecycle diagnostic_msgs realtime_tools
+  isaac_common)
 
 target_sources(${PROJECT_NAME} PRIVATE src/unitree_hg_crc.cpp)
 target_sources(${PROJECT_NAME} PRIVATE src/channel_factory_guard.cpp)
@@ -133,5 +130,6 @@ if(BUILD_TESTING)
 endif()
 
 ament_export_dependencies(
-  hardware_interface pluginlib rclcpp rclcpp_lifecycle diagnostic_msgs realtime_tools)
+  hardware_interface pluginlib rclcpp rclcpp_lifecycle diagnostic_msgs realtime_tools
+  isaac_common)
 ament_package()

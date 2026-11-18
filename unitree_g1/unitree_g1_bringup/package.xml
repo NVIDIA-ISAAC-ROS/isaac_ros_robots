@@ -20,7 +20,7 @@ limitations under the License.
 <?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
 <package format="3">
   <name>unitree_g1_bringup</name>
-  <version>5.0.0</version>
+  <version>5.1.0</version>
   <description>Launch files and configurations for bringing up Unitree G1 robot</description>
   <maintainer email="isaac-ros-maintainers@nvidia.com">Isaac ROS Maintainers</maintainer>
   <license>Apache-2.0</license>
@@ -50,6 +50,7 @@ limitations under the License.
   <exec_depend>isaac_ros_deploy_interfaces</exec_depend>
   <exec_depend>isaac_ros_robots_tools</exec_depend>
   <exec_depend>mujoco_ros2_control</exec_depend>
+  <exec_depend>reference_motion_ros</exec_depend>
   <exec_depend>sensor_msgs</exec_depend>
   <exec_depend>std_srvs</exec_depend>
 

@@ -19,6 +19,7 @@
 """Unified launch file for Unitree G1 robot - supports both MuJoCo and real hardware."""
 
 from pathlib import Path
+import subprocess
 import tempfile
 from typing import Any
 
@@ -36,6 +37,7 @@ from launch.actions import (
 )
 from launch.conditions import IfCondition
 from launch.event_handlers import OnProcessExit
+from launch.logging import get_logger
 from launch.substitutions import (
     Command,
     FindExecutable,
@@ -385,7 +387,7 @@ def generate_launch_description() -> LaunchDescription:
         DeclareLaunchArgument(
             'ik_reference_pose_topic',
             default_value='',
-            description='Internal: topic to remap /ik_controller/reference_pose to.',
+            description='External pose topic configured on ik_controller when set.',
         ),
         DeclareLaunchArgument(
             'cmd_vel_topic',
@@ -431,6 +433,29 @@ def generate_launch_description() -> LaunchDescription:
     return LaunchDescription(
         declared_arguments + [OpaqueFunction(function=launch_setup)]
     )
+
+
+def _control_node_fifo_prefix() -> str | None:
+    """
+    Run all ros2_control_node threads at the lowest FIFO priority, if the container allows it.
+
+    Helper threads such as realtime publishers inherit the process policy. As SCHED_OTHER they
+    get starved under CPU load and drop messages. The update loop still raises itself higher.
+    """
+    try:
+        fifo_allowed = subprocess.run(
+            ['chrt', '-f', '1', 'true'], stderr=subprocess.DEVNULL, check=False
+        ).returncode == 0
+    except FileNotFoundError:
+        fifo_allowed = False
+    if not fifo_allowed:
+        get_logger('unitree_g1_controller_manager').warning(
+            'Real-time scheduling is not permitted; running ros2_control_node without it. '
+            "On the host, run `echo '--ulimit rtprio=99' >> ~/.isaac_ros_dev-dockerargs` "
+            'and recreate the container.'
+        )
+        return None
+    return 'chrt -f 1'
 
 
 def launch_setup(context: LaunchContext) -> list[Any]:
@@ -600,6 +625,10 @@ def launch_setup(context: LaunchContext) -> list[Any]:
             },
         }
 
+    ik_reference_pose_topic = context.launch_configurations.get(
+        'ik_reference_pose_topic', ''
+    ).strip()
+
     # Forward command_prefix/command_suffix and robot-specific file paths to
     # ik_controller when it's in the group.
     if 'ik_controller' in group_config.get('controllers', []):
@@ -618,6 +647,8 @@ def launch_setup(context: LaunchContext) -> list[Any]:
             ik_ros_params['command_suffix'] = group_config['command_suffix']
         if upper_body_prefix:
             ik_ros_params['command_prefix'] = upper_body_prefix
+        if ik_reference_pose_topic:
+            ik_ros_params['pose_topic'] = ik_reference_pose_topic
         runtime_params['ik_controller'] = {'ros__parameters': ik_ros_params}
 
         safety_gravity_params = {
@@ -658,14 +689,6 @@ def launch_setup(context: LaunchContext) -> list[Any]:
         _spawner_parameter_files(controller_params, hardware_parameter_files)
     )
 
-    # Build optional remappings used when an external topic source replaces the defaults.
-    remappings = []
-    ik_reference_pose_topic = context.launch_configurations.get(
-        'ik_reference_pose_topic', ''
-    )
-    if ik_reference_pose_topic:
-        remappings.append(('/ik_controller/reference_pose', ik_reference_pose_topic))
-
     # Controller manager node (package varies by hardware type).
     # When CUDA MPS is active, limit this process to 20% of GPU threads so the
     # ros2_control policy gets predictable low-latency inference while any
@@ -675,9 +698,9 @@ def launch_setup(context: LaunchContext) -> list[Any]:
         package=hw_config['controller_manager_package'],
         executable='ros2_control_node',
         parameters=controller_params,
-        remappings=remappings,
         output='both',
         emulate_tty=True,
+        prefix=_control_node_fifo_prefix(),
         additional_env={'CUDA_MPS_ACTIVE_THREAD_PERCENTAGE': '20'},
     )
 

@@ -21,30 +21,6 @@ def package_root():
 
 class InstallMetadataTest(unittest.TestCase):
 
-    def test_cyclonedds_is_built_as_a_private_dependency(self):
-        package = package_root()
-        cmake = (package / "CMakeLists.txt").read_text()
-        normalized_cmake = " ".join(cmake.lower().split())
-
-        self.assertNotIn("fetchcontent_makeavailable(cyclonedds)", normalized_cmake)
-        self.assertIn("fetchcontent_populate(cyclonedds)", normalized_cmake)
-        self.assertRegex(
-            normalized_cmake,
-            r"add_subdirectory\([^)]*cyclonedds_source_dir[^)]*exclude_from_all\)",
-        )
-        self.assertIn("install(targets ddsc", normalized_cmake)
-        for option in (
-                "BUILD_IDLC", "BUILD_DDSPERF", "BUILD_EXAMPLES", "ENABLE_SECURITY"):
-            self.assertIn(f"set({option.lower()} off)", normalized_cmake)
-            self.assertNotRegex(
-                normalized_cmake,
-                rf"set\({option.lower()} off cache\b",
-            )
-
-        build = (package / "BUILD.bazel").read_text()
-        patch = "cmake/patches/cyclonedds-0.10.2-typeobject-null-safety.patch"
-        self.assertGreaterEqual(build.count(f'"{patch}"'), 3)
-
     def test_ament_registers_python_contract_tests(self):
         package = package_root()
         cmake = (package / "CMakeLists.txt").read_text()
@@ -55,7 +31,6 @@ class InstallMetadataTest(unittest.TestCase):
         self.assertIn(
             "ament_add_pytest_test(test_runtime_source_contracts "
             "test/test_runtime_source_contracts.py)", cmake)
-
         package_xml = ET.parse(package / "package.xml").getroot()
         test_dependencies = {
             dependency.text for dependency in package_xml.findall("test_depend")
@@ -77,11 +52,15 @@ class InstallMetadataTest(unittest.TestCase):
                 add_library(unitree_sdk2 INTERFACE)
                 set(BUILD_TESTING OFF CACHE BOOL "" FORCE)
                 add_subdirectory("{package}" unitree_hg_ros2_control)
+                get_property(target_dependencies GLOBAL PROPERTY MOCK_TARGET_DEPENDENCIES)
+                if(NOT "isaac_common" IN_LIST target_dependencies)
+                  message(FATAL_ERROR "isaac_common must be a target dependency")
+                endif()
             """))
             build = temporary / "build"
             configure = subprocess.run(
                 ["cmake", "-S", str(source), "-B", str(build),
-                 f"-DCMAKE_PREFIX_PATH={prefix}"],
+                 f"-DCMAKE_PREFIX_PATH={prefix}", "-DUSE_NVTX=OFF"],
                 check=False, capture_output=True, text=True)
             self.assertEqual(
                 configure.returncode, 0, configure.stdout + configure.stderr)
@@ -107,7 +86,7 @@ class InstallMetadataTest(unittest.TestCase):
     @staticmethod
     def _write_mock_packages(prefix):
         packages = ["ament_cmake", "hardware_interface", "pluginlib", "rclcpp",
-                    "rclcpp_lifecycle", "diagnostic_msgs", "realtime_tools"]
+                    "rclcpp_lifecycle", "diagnostic_msgs", "realtime_tools", "isaac_common"]
         for package in packages:
             config_dir = prefix / "share" / package / "cmake"
             config_dir.mkdir(parents=True)
@@ -115,6 +94,7 @@ class InstallMetadataTest(unittest.TestCase):
             if package == "ament_cmake":
                 body = textwrap.dedent("""
                     function(ament_target_dependencies target)
+                      set_property(GLOBAL PROPERTY MOCK_TARGET_DEPENDENCIES "${ARGN}")
                     endfunction()
                     function(ament_export_dependencies)
                     endfunction()
