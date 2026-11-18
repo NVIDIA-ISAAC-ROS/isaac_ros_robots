@@ -14,3 +14,22 @@ index 37aa0037..57f01886 100644
 +  if (t == NULL)
 +    return DDS_RETCODE_BAD_PARAMETER;
 +
+@@ -1332,7 +1335,6 @@ dds_return_t ddsi_xt_type_init_impl (struct ddsi_domaingv *gv, struct xt_type *
+         xt->sc_component_id = ti->_u.sc_component_id;
+         break;
+       default:
+-        ddsi_typeid_fini (&xt->id);
+         ret = DDS_RETCODE_UNSUPPORTED; /* not supported */
+         break;
+     }
+@@ -1341,7 +1343,9 @@ dds_return_t ddsi_xt_type_init_impl (struct ddsi_domaingv *gv, struct xt_type *
+   {
+     if (ret == DDS_RETCODE_OK)
+     {
+-      ddsi_xt_type_fini (gv, xt, true);
++      /* ddsi_type_new will call ddsi_type_fini, which needs the identifier
++         to remove dependency records before releasing it. */
++      ddsi_xt_type_fini (gv, xt, false);
+       ret = ret_validate;
+     }
+     GVWARNING ("type " PTYPEIDFMT ": ddsi_xt_type_init_impl with invalid type object\n", PTYPEID (xt->id.x));

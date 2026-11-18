@@ -19,7 +19,7 @@ limitations under the License.
 
 <package format="3">
   <name>unitree_hg_ros2_control</name>
-  <version>5.0.0</version>
+  <version>5.1.0</version>
   <description>Generic ROS 2 control hardware interfaces for Unitree unitree_hg humanoid robots (G1, H2) and Dex3 hands, using the Unitree SDK over DDS.</description>
   <maintainer email="isaac-ros-maintainers@nvidia.com">Isaac ROS Maintainers</maintainer>
   <license>Apache-2.0</license>
@@ -32,6 +32,8 @@ limitations under the License.
   <depend>rclcpp_lifecycle</depend>
   <depend>diagnostic_msgs</depend>
   <depend>realtime_tools</depend>
+  <!-- Header-only: nvtx_scope.hpp, for the deploy pipeline's NVTX trace ranges. -->
+  <depend>isaac_common</depend>
 
   <test_depend>ament_lint_auto</test_depend>
   <test_depend>ament_lint_common</test_depend>

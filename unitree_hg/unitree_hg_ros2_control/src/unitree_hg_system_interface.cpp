@@ -27,6 +27,7 @@
 #include "diagnostic_msgs/msg/diagnostic_array.hpp"
 #include "diagnostic_msgs/msg/diagnostic_status.hpp"
 #include "diagnostic_msgs/msg/key_value.hpp"
+#include "isaac_common/tracing/nvtx_scope.hpp"
 #include "unitree_hg_ros2_control/joint_index_tables.hpp"
 
 namespace unitree_hg_ros2_control
@@ -415,6 +416,14 @@ void UnitreeHgSystemInterface::release_channel_factory()
 
 void UnitreeHgSystemInterface::low_state_callback(const void * message)
 {
+  // Names the Unitree SDK's DDS receive thread. Separate from the RT loop, so sensor-ingest jitter
+  // can be told apart from control-loop jitter.
+  nvidia::isaac_ros::tracing::name_thread("hw:sdk_rx");
+
+  // Where joint state actually enters the process, on an SDK thread. read() below only reads
+  // what this already deposited, so this is the span that carries sensor-ingest latency.
+  ISAAC_DEPLOY_NVTX_SCOPE("hw:state_rx", nvidia::isaac_ros::tracing::kColorReadState);
+
   const auto & low_state = *static_cast<const unitree_hg::msg::dds_::LowState_ *>(message);
   if (!detail::LowStateCrc::is_valid(low_state)) {
     RCLCPP_WARN(get_logger(), "Ignoring Unitree LowState with invalid CRC");
@@ -623,6 +632,8 @@ hardware_interface::return_type UnitreeHgSystemInterface::read(
     return hardware_interface::return_type::ERROR;
   }
 
+  // Deliberately unspanned: this only checks two atomics. The state is deposited out of band by
+  // low_state_callback, which carries the hw:state_rx span.
   if (!fresh_low_state_.has_fresh_state()) {
     RCLCPP_WARN_THROTTLE(
       get_logger(), steady_clock_, 1000,
@@ -640,6 +651,8 @@ hardware_interface::return_type UnitreeHgSystemInterface::read(
 hardware_interface::return_type UnitreeHgSystemInterface::write(
   const rclcpp::Time & /*time*/, const rclcpp::Duration & /*period*/)
 {
+  ISAAC_DEPLOY_NVTX_SCOPE("hw:write", nvidia::isaac_ros::tracing::kColorWriteCommand);
+
   if (!sdk_initialized_.load()) {
     return hardware_interface::return_type::ERROR;
   }
